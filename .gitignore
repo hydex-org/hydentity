@@ -1,0 +1,138 @@
+# ========================
+# Dependencies
+# ========================
+node_modules/
+.pnpm-store/
+
+# ========================
+# Build outputs
+# ========================
+dist/
+.next/
+out/
+build/
+
+# Rust/Anchor build
+target/
+
+# ========================
+# Anchor / Solana
+# ========================
+.anchor/
+test-ledger/
+
+# Program keypairs (IMPORTANT: never commit these)
+*-keypair.json
+keypair.json
+id.json
+
+# Localnet/devnet wallet keys
+*.keypair
+wallet.json
+
+# ========================
+# Environment & Secrets
+# ========================
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+
+# API keys and secrets
+secrets/
+*.secret
+*.key
+
+# ========================
+# IDE & Editor
+# ========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+
+# ========================
+# OS Generated
+# ========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ========================
+# Logs
+# ========================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ========================
+# Testing & Coverage
+# ========================
+coverage/
+.nyc_output/
+*.lcov
+
+# ========================
+# Turbo
+# ========================
+.turbo/
+
+# ========================
+# TypeScript
+# ========================
+*.tsbuildinfo
+
+# ========================
+# Misc
+# ========================
+*.pem
+*.p12
+*.pfx
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Cache directories
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Debug
+.debug/
+
+# ========================
+# Project Specific
+# ========================
+
+# Don't commit large documentation files that may contain sensitive info
+# (Keep the spec files though)
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Lock files (optional - some teams prefer to commit these)
+# Uncomment if you want to ignore lock files:
+# pnpm-lock.yaml
+# package-lock.json
+# yarn.lock

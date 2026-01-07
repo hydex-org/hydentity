@@ -1,0 +1,185 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Hydex Brand Colors */
+  --hx-green: #97f01d;
+  --hx-blue: #00A8FF;
+  --hx-bg: #0E1114;
+  --hx-text: #C8D0D4;
+  --hx-white: #F2F5F7;
+  
+  /* Derived colors */
+  --hx-green-dim: rgba(151, 240, 29, 0.1);
+  --hx-green-glow: rgba(151, 240, 29, 0.3);
+  --hx-blue-dim: rgba(0, 168, 255, 0.1);
+  --hx-card: #151A1E;
+  --hx-border: #1E2428;
+}
+
+body {
+  color: var(--hx-text);
+  background: var(--hx-bg);
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--hx-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2A3238;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3A444C;
+}
+
+/* Wallet adapter button overrides */
+.wallet-adapter-button {
+  background: var(--hx-green) !important;
+  color: #0E1114 !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+
+.wallet-adapter-button:hover {
+  background: #a8f740 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 20px var(--hx-green-glow) !important;
+}
+
+.wallet-adapter-dropdown {
+  background: var(--hx-card) !important;
+  border: 1px solid var(--hx-border) !important;
+  border-radius: 12px !important;
+}
+
+.wallet-adapter-dropdown-list-item {
+  background: transparent !important;
+  transition: background 0.2s ease !important;
+}
+
+.wallet-adapter-dropdown-list-item:hover {
+  background: var(--hx-border) !important;
+}
+
+/* Primary button */
+.btn-primary {
+  background: var(--hx-green);
+  color: #0E1114;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #a8f740;
+  box-shadow: 0 4px 20px var(--hx-green-glow);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Secondary button */
+.btn-secondary {
+  background: var(--hx-card);
+  border: 1px solid var(--hx-border);
+  color: var(--hx-text);
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--hx-green);
+  background: rgba(151, 240, 29, 0.05);
+}
+
+/* Glass card effect */
+.glass {
+  background: var(--hx-card);
+  border: 1px solid var(--hx-border);
+  border-radius: 16px;
+}
+
+.glass:hover {
+  border-color: rgba(151, 240, 29, 0.2);
+}
+
+/* Text gradients */
+.text-gradient {
+  background: linear-gradient(135deg, var(--hx-green) 0%, var(--hx-blue) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow effects */
+.glow-green {
+  box-shadow: 0 0 30px var(--hx-green-glow);
+}
+
+/* Input styling */
+input[type="text"],
+input[type="number"] {
+  background: var(--hx-bg);
+  border: 1px solid var(--hx-border);
+  color: var(--hx-white);
+  border-radius: 8px;
+  transition: border-color 0.2s ease;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus {
+  outline: none;
+  border-color: var(--hx-green);
+}
+
+/* Animation classes */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out forwards;
+}
+
+.animation-delay-100 { animation-delay: 0.1s; }
+.animation-delay-200 { animation-delay: 0.2s; }
+.animation-delay-300 { animation-delay: 0.3s; }
+
+/* Hyde XP badge styling */
+.hyde-xp-badge {
+  background: var(--hx-bg);
+  border: 1px solid var(--hx-border);
+  border-radius: 24px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Progress ring */
+.progress-ring {
+  stroke: var(--hx-green);
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.3s ease;
+}
