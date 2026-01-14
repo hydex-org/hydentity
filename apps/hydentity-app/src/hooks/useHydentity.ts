@@ -8,26 +8,26 @@
  * ⚠️  MAINNET TRANSITION CHECKLIST - Search for "DEVNET_ONLY" in this file
  * 
  * Before deploying to mainnet, the following changes are required:
- * 
+ *
  * 1. HYDENTITY_PROGRAM_ID - Update to mainnet deployed program ID
- * 2. DEVNET_SNS_DOMAINS - Remove hardcoded mapping (use Bonfida SDK only)
- * 3. getSnsNameAccount() - Remove devnet-specific logic, use getDomainKeySync only
- * 4. reverseLookupDomain() - Use Bonfida's reverseLookup for mainnet
- * 5. buildSnsTransferInstruction() - Can use Bonfida's transferNameOwnership on mainnet
- * 6. Test mode logic - Remove or disable test mode for production
+ * 2. getSnsNameAccount() - Remove devnet-specific logic, use getDomainKeySync only
+ * 3. reverseLookupDomain() - Add mainnet reverseLookup support
+ * 4. buildSnsTransferInstruction() - Can use Bonfida's transferNameOwnership on mainnet
+ * 5. Test mode logic - Remove or disable test mode for production
  * 
  * =============================================================================
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { 
-  PublicKey, 
-  Transaction, 
-  SystemProgram, 
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  SystemProgram,
   TransactionInstruction,
 } from '@solana/web3.js';
-import { getDomainKeySync } from '@bonfida/spl-name-service';
+import { getDomainKeySync, devnet } from '@bonfida/spl-name-service';
 import { useTestMode } from '@/contexts/TestModeContext';
 
 // =============================================================================
@@ -47,19 +47,6 @@ const SNS_NAME_PROGRAM_ID = new PublicKey('namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8
 const VAULT_SEED = Buffer.from('vault');
 const VAULT_AUTH_SEED = Buffer.from('vault_auth');
 const POLICY_SEED = Buffer.from('policy');
-
-/**
- * DEVNET_ONLY: Hardcoded devnet SNS domains for testing
- * 
- * On devnet, the Bonfida SDK's getDomainKeySync doesn't derive correct PDAs
- * because devnet SNS uses a different structure. This mapping allows us to
- * test with real devnet SNS domains.
- * 
- * TODO for mainnet: Remove this entire mapping and use Bonfida SDK exclusively
- */
-const DEVNET_SNS_DOMAINS: Record<string, string> = {
-  'hydentity': '9PqfhsmVFZ3UVmSCwcqUZx8dEbxr4R65AQeGAAcQKZCa',
-};
 
 /**
  * DEVNET_ONLY: Check if we're on devnet
@@ -165,22 +152,24 @@ function parseNameVault(data: Buffer): {
 }
 
 /**
- * DEVNET_ONLY: Reverse lookup SNS name account -> domain name
- * 
- * On devnet, uses hardcoded mapping because Bonfida's reverseLookup
- * doesn't work with devnet's different SNS structure.
- * 
- * TODO for mainnet: Replace with Bonfida's reverseLookup:
- *   import { reverseLookup } from '@bonfida/spl-name-service';
- *   const domain = await reverseLookup(connection, snsNameAccount);
+ * Reverse lookup SNS name account -> domain name
+ *
+ * Uses devnet.utils.reverseLookup for devnet environments.
+ * TODO for mainnet: Add mainnet reverseLookup support.
  */
-function reverseLookupDomain(snsNameAccount: PublicKey, endpoint: string): string | null {
+async function reverseLookupDomain(
+  connection: Connection,
+  snsNameAccount: PublicKey,
+  endpoint: string
+): Promise<string | null> {
+  // DEVNET_ONLY: Use devnet reverse lookup
   if (isDevnet(endpoint)) {
-    // DEVNET_ONLY: Reverse lookup in hardcoded devnet domains
-    for (const [domain, account] of Object.entries(DEVNET_SNS_DOMAINS)) {
-      if (account === snsNameAccount.toBase58()) {
-        return domain;
-      }
+    try {
+      const domain = await devnet.utils.reverseLookup(connection, snsNameAccount);
+      return domain || null;
+    } catch (err) {
+      console.warn('Devnet reverse lookup failed:', err);
+      return null;
     }
   }
   // TODO for mainnet: Use Bonfida's reverseLookup
@@ -260,16 +249,18 @@ function getPolicyPda(snsNameAccount: PublicKey): [PublicKey, number] {
  */
 function getSnsNameAccount(domain: string, endpoint: string): PublicKey {
   const cleanDomain = domain.toLowerCase().replace(/\.sol$/, '');
-  
-  // DEVNET_ONLY: Check hardcoded mapping first
+
+  // DEVNET_ONLY: Use devnet utilities to derive the correct PDA
   if (isDevnet(endpoint)) {
-    const devnetAccount = DEVNET_SNS_DOMAINS[cleanDomain];
-    if (devnetAccount) {
-      console.log(`[DEVNET_ONLY] Using hardcoded SNS account for ${cleanDomain}: ${devnetAccount}`);
-      return new PublicKey(devnetAccount);
+    try {
+      const { pubkey } = devnet.utils.getDomainKeySync(cleanDomain);
+      console.log(`[DEVNET_ONLY] Using devnet SNS account for ${cleanDomain}: ${pubkey.toBase58()}`);
+      return pubkey;
+    } catch (err) {
+      console.warn(`[DEVNET_ONLY] Failed devnet derivation for ${cleanDomain}, falling back to mainnet:`, err);
     }
   }
-  
+
   // For mainnet: Use Bonfida SDK derivation
   const { pubkey } = getDomainKeySync(cleanDomain);
   return pubkey;
@@ -370,7 +361,7 @@ export function useHydentity() {
           }
           
           // Reverse lookup the domain name
-          const domain = reverseLookupDomain(vaultData.snsName, connection.rpcEndpoint);
+          const domain = await reverseLookupDomain(connection, vaultData.snsName, connection.rpcEndpoint);
           if (!domain) {
             console.warn('Could not find domain for SNS account:', vaultData.snsName.toBase58());
             // Use truncated pubkey as fallback
