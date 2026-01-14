@@ -123,8 +123,18 @@ temp/
 # Project Specific
 # ========================
 
-# Don't commit large documentation files that may contain sensitive info
-# (Keep the spec files though)
+# Documentation (temporary exclusion)
+docs/
+
+# External/reference SDKs
+privacy sdks/
+
+# Circuit artifacts (large binary files)
+*.wasm
+*.zkey
+*.r1cs
+*.sym
+*.ptau
 
 # Backup files
 *.bak

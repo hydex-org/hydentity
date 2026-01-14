@@ -6,6 +6,7 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/Header';
 import { ClientOnly } from '@/components/ClientOnly';
+import { DevnetDomainRegistration } from '@/components/DevnetDomainRegistration';
 import { useHydentity } from '@/hooks/useHydentity';
 import { useSnsDomains, SnsDomain } from '@/hooks/useSnsDomains';
 import { useTestMode } from '@/contexts/TestModeContext';
@@ -266,19 +267,28 @@ export default function SetupPage() {
                           You can register a .sol domain at{' '}
                           <a 
                             href="https://sns.id" 
-                            target="_blank" 
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="text-hx-blue hover:underline"
                           >
                             sns.id
                           </a>
+                          {' '}or register directly on devnet below.
                         </p>
-                        <button
-                          onClick={() => setUseManualEntry(true)}
-                          className="text-hx-green text-sm hover:underline"
-                        >
-                          Or enter domain manually
-                        </button>
+                        <div className="flex flex-col items-center gap-3">
+                          <DevnetDomainRegistration
+                            onDomainRegistered={(domain) => {
+                              // After registration, refetch domains
+                              refetch();
+                            }}
+                          />
+                          <button
+                            onClick={() => setUseManualEntry(true)}
+                            className="text-hx-green text-sm hover:underline"
+                          >
+                            Or enter domain manually
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <>

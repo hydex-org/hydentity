@@ -19,8 +19,11 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  // Use devnet for development
-  const endpoint = useMemo(() => clusterApiUrl('devnet'), []);
+  // Use custom RPC endpoint from env, fallback to devnet
+  const endpoint = useMemo(
+    () => process.env.NEXT_PUBLIC_RPC_ENDPOINT || clusterApiUrl('devnet'),
+    []
+  );
 
   // Configure wallets
   const wallets = useMemo(

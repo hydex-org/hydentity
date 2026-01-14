@@ -8,12 +8,10 @@ import {
   getPrimaryDomain,
 } from '@bonfida/spl-name-service';
 import type { SnsNameInfo } from '../types/solana';
+import { SOL_TLD_AUTHORITY } from '../constants';
 
 // SNS Name Service Program ID
 export const NAME_PROGRAM_ID = new PublicKey('namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX');
-
-// .sol TLD
-export const SOL_TLD_AUTHORITY = new PublicKey('58PwtjSDuFHuUkYjH9BYnnQKHfwo9reZhC2zMJv9JPkx');
 
 /**
  * Error class for SNS-related errors
@@ -142,8 +140,8 @@ export async function getPrimaryDomainForOwner(
   owner: PublicKey
 ): Promise<string | null> {
   try {
-    const { domain } = await getPrimaryDomain(connection, owner);
-    return domain;
+    const { reverse } = await getPrimaryDomain(connection, owner);
+    return reverse;
   } catch {
     return null;
   }

@@ -1,5 +1,6 @@
 import { PublicKey, VersionedTransaction } from '@solana/web3.js';
-import type { Bytes, SolanaSignature, SolanaAddress } from '../types/solana';
+import type { SolanaSignature, SolanaAddress } from '../types/solana';
+import type { Bytes } from '../types/common';
 
 /**
  * Error class for signer-related errors

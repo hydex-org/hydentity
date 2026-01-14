@@ -36,7 +36,6 @@ pub enum WithdrawalStatus {
 /// - Only progress counters are visible on-chain
 /// - External observers see "X of Y splits complete" but not where funds went
 #[account]
-#[derive(Default)]
 pub struct PendingWithdrawal {
     /// The vault this withdrawal is from
     pub vault: Pubkey,
@@ -181,11 +180,32 @@ impl PendingWithdrawal {
 /// Seeds for PendingWithdrawal PDA derivation
 pub const PENDING_WITHDRAWAL_SEED: &[u8] = b"pending_withdrawal";
 
+impl Default for PendingWithdrawal {
+    fn default() -> Self {
+        Self {
+            vault: Pubkey::default(),
+            encrypted_plan: [0u8; 1024],
+            nonce: [0u8; 16],
+            plan_id: [0u8; 16],
+            total_splits: 0,
+            completed_splits: 0,
+            status: WithdrawalStatus::Pending,
+            total_amount: 0,
+            withdrawn_amount: 0,
+            created_at: 0,
+            expires_at: 0,
+            last_execution_at: 0,
+            computation_offset: 0,
+            bump: 0,
+            _reserved: [0u8; 64],
+        }
+    }
+}
+
 /// Withdrawal request queue entry
 /// 
 /// Used to track withdrawal requests before plan generation
 #[account]
-#[derive(Default)]
 pub struct WithdrawalRequest {
     /// The vault requesting withdrawal
     pub vault: Pubkey,
@@ -232,3 +252,18 @@ impl WithdrawalRequest {
 /// Seeds for WithdrawalRequest PDA derivation
 pub const WITHDRAWAL_REQUEST_SEED: &[u8] = b"withdrawal_request";
 
+impl Default for WithdrawalRequest {
+    fn default() -> Self {
+        Self {
+            vault: Pubkey::default(),
+            amount: 0,
+            user_entropy: [0u8; 32],
+            entropy_timestamp: 0,
+            entropy_signature: [0u8; 64],
+            requested_at: 0,
+            computation_offset: 0,
+            plan_generated: false,
+            bump: 0,
+        }
+    }
+}

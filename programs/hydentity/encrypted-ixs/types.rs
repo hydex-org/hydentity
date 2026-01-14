@@ -64,8 +64,12 @@ pub struct PrivateVaultConfig {
     /// Unix timestamp of last update
     pub updated_at: i64,
     
+    /// Whether to route withdrawals through Privacy Cash
+    /// When enabled, withdrawals go through Privacy Cash pool instead of Arcium splits
+    pub use_privacy_cash: bool,
+    
     /// Reserved space for future fields
-    pub _reserved: [u8; 32],
+    pub _reserved: [u8; 31],
 }
 
 impl Default for PrivateVaultConfig {
@@ -83,7 +87,8 @@ impl Default for PrivateVaultConfig {
             owner_pubkey: [0u8; 32],
             created_at: 0,
             updated_at: 0,
-            _reserved: [0u8; 32],
+            use_privacy_cash: false,
+            _reserved: [0u8; 31],
         }
     }
 }

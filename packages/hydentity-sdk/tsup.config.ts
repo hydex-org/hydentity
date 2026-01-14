@@ -12,6 +12,7 @@ export default defineConfig({
     '@coral-xyz/anchor',
     '@solana/web3.js',
     '@solana/spl-token',
+    '@noble/ed25519',
   ],
 });
 

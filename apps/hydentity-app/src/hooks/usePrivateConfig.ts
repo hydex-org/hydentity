@@ -34,6 +34,7 @@ export interface PrivateVaultConfig {
   autoWithdrawEnabled: boolean;
   autoWithdrawThreshold: bigint;
   ownerPubkey: PublicKey;
+  usePrivacyCash: boolean;
 }
 
 export interface ConfigStatus {
@@ -71,7 +72,7 @@ export const PRIVACY_PRESETS: Record<PrivacyPreset, {
     label: 'High',
     description: 'Maximum privacy with longer delays',
     minSplits: 3,
-    maxSplits: 6,
+    maxSplits: 5,
     minDelaySeconds: 7200,    // 2 hours
     maxDelaySeconds: 28800,   // 8 hours
   },
@@ -165,6 +166,7 @@ export function usePrivateConfig(): UsePrivateConfigReturn {
       autoWithdrawEnabled: false,
       autoWithdrawThreshold: BigInt(0),
       ownerPubkey,
+      usePrivacyCash: false,
     };
   }, []);
 

@@ -1,17 +1,22 @@
 use anchor_lang::prelude::*;
-// TODO: Uncomment when arcium-anchor crate is available
-// use arcium_anchor::prelude::*;
+use arcium_anchor::prelude::*;
+use arcium_client::idl::arcium::types::CallbackAccount;
 
 use crate::constants::*;
 use crate::errors::HydentityError;
 use crate::state::{
     EncryptedVaultConfig, NameVault, PendingWithdrawal, WithdrawalRequest,
-    WithdrawalStatus, ENCRYPTED_CONFIG_SEED, PENDING_WITHDRAWAL_SEED,
-    WITHDRAWAL_REQUEST_SEED,
+    ENCRYPTED_CONFIG_SEED, PENDING_WITHDRAWAL_SEED, WITHDRAWAL_REQUEST_SEED,
 };
+use crate::events::{WithdrawalRequested, WithdrawalPlanGenerated};
 
 /// Computation definition offset for generate_withdrawal_plan
-pub const COMP_DEF_OFFSET_GENERATE_PLAN: u32 = 0; // TODO: Calculate actual value
+const COMP_DEF_OFFSET_GENERATE_PLAN: u32 = comp_def_offset!("generate_withdrawal_plan");
+
+/// Offset of encrypted_data field in EncryptedVaultConfig
+/// discriminator (8) + vault (32) = 40
+const ENCRYPTED_CONFIG_DATA_OFFSET: u32 = 40;
+const ENCRYPTED_CONFIG_DATA_SIZE: u32 = 512;
 
 /// Request a withdrawal with MPC-generated plan
 /// 
@@ -66,10 +71,6 @@ pub fn handler(
     // For now, we trust the frontend to check balance before requesting
     require!(amount > 0, HydentityError::InvalidAmount);
     
-    // Verify no pending withdrawal for this vault
-    // (Can only have one active withdrawal at a time)
-    // This is checked by the PDA derivation - if account exists, it will fail init
-    
     // Initialize withdrawal request
     request.vault = vault.key();
     request.amount = amount;
@@ -81,57 +82,83 @@ pub fn handler(
     request.plan_generated = false;
     request.bump = ctx.bumps.withdrawal_request;
     
-    // TODO: Queue Arcium computation when arcium-anchor is available
-    // The computation will:
-    // 1. Load encrypted config for this vault
-    // 2. Decrypt config using MPC
-    // 3. Generate randomized withdrawal plan
-    // 4. Return encrypted plan via callback
-    //
-    // Example (uncomment when arcium-anchor available):
-    // ```
-    // let args = vec![
-    //     // Reference to encrypted config account
-    //     Argument::AccountRef(config.key().to_bytes().to_vec()),
-    //     // Withdrawal amount
-    //     Argument::PlaintextU64(amount),
-    //     // User entropy (encrypted)
-    //     Argument::ArcisPubkey(arcis_pubkey),
-    //     Argument::PlaintextU128(encryption_nonce),
-    //     Argument::EncryptedBytes(user_entropy.to_vec()),
-    //     // Current timestamp
-    //     Argument::PlaintextI64(clock.unix_timestamp),
-    // ];
-    //
-    // ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
-    //
-    // queue_computation(
-    //     ctx.accounts,
-    //     computation_offset,
-    //     args,
-    //     None, // No callback server needed
-    //     vec![GenerateWithdrawalPlanCallback::callback_ix(&[
-    //         CallbackAccount {
-    //             pubkey: request.key(),
-    //             is_writable: true,
-    //         },
-    //         CallbackAccount {
-    //             pubkey: ctx.accounts.pending_withdrawal.key(),
-    //             is_writable: true,
-    //         },
-    //     ])],
-    //     1,
-    // )?;
-    // ```
+    // Initialize pending withdrawal with placeholder data
+    // The callback will update it with the actual encrypted plan
+    let pending = &mut ctx.accounts.pending_withdrawal;
+    pending.initialize(
+        vault.key(),
+        [0u8; 1024], // Placeholder - will be updated in callback
+        [0u8; 16],   // Placeholder - will be updated in callback
+        computation_offset.to_le_bytes()[0..16].try_into().unwrap_or([0u8; 16]),
+        0,           // Placeholder - will be updated in callback
+        amount,
+        clock.unix_timestamp,
+        clock.unix_timestamp + (7 * 24 * 60 * 60), // 7 days placeholder
+        computation_offset,
+        ctx.bumps.pending_withdrawal,
+    );
+    
+    // Build arguments for Arcium computation
+    // The encrypted instruction expects:
+    // - vault_config: Enc<Mxe, &PrivateVaultConfig> (from encrypted_config account)
+    // - amount_lamports: u64
+    // - user_entropy: Enc<Shared, UserEntropy>
+    // - current_timestamp: i64
+    ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
+    
+    let args = ArgBuilder::new()
+        .account(
+            config.key(),
+            ENCRYPTED_CONFIG_DATA_OFFSET,
+            ENCRYPTED_CONFIG_DATA_SIZE,
+        )
+        .plaintext_u64(amount)
+        .x25519_pubkey(arcis_pubkey)
+        .plaintext_u128(encryption_nonce)
+        .encrypted_u8(user_entropy)
+        .plaintext_i64(clock.unix_timestamp)
+        .build();
+    
+    // Queue Arcium computation
+    queue_computation(
+        ctx.accounts,
+        computation_offset,
+        args,
+        None,
+        vec![GenerateWithdrawalPlanCallback::callback_ix(
+            computation_offset,
+            &ctx.accounts.mxe_account,
+            &[
+                CallbackAccount {
+                    pubkey: request.key(),
+                    is_writable: true,
+                },
+                CallbackAccount {
+                    pubkey: ctx.accounts.pending_withdrawal.key(),
+                    is_writable: true,
+                },
+            ],
+        )?],
+        1,
+        0,
+    )?;
     
     msg!("Withdrawal requested from vault: {}", vault.key());
     msg!("Amount: {} lamports", amount);
-    msg!("Awaiting MPC plan generation (computation_offset: {})", computation_offset);
+    msg!("Computation offset: {}", computation_offset);
+    
+    emit!(WithdrawalRequested {
+        vault: vault.key(),
+        amount,
+        computation_offset,
+        timestamp: clock.unix_timestamp,
+    });
     
     Ok(())
 }
 
 /// Accounts for requesting a withdrawal
+#[queue_computation_accounts("generate_withdrawal_plan", owner)]
 #[derive(Accounts)]
 #[instruction(computation_offset: u64, amount: u64)]
 pub struct RequestWithdrawal<'info> {
@@ -141,7 +168,7 @@ pub struct RequestWithdrawal<'info> {
     
     /// The vault to withdraw from
     #[account(
-        seeds = [VAULT_SEED, vault.sns_name_account.as_ref()],
+        seeds = [VAULT_SEED, vault.sns_name.as_ref()],
         bump = vault.bump,
         constraint = vault.owner == owner.key() @ HydentityError::Unauthorized,
     )]
@@ -165,210 +192,248 @@ pub struct RequestWithdrawal<'info> {
     )]
     pub withdrawal_request: Account<'info, WithdrawalRequest>,
     
-    /// Pending withdrawal account (created by callback)
-    /// We need to pass this so callback can initialize it
-    /// CHECK: Initialized by callback
+    /// Pending withdrawal account (initialized here, updated by callback)
     #[account(
-        mut,
+        init,
+        payer = owner,
+        space = PendingWithdrawal::SPACE,
         seeds = [PENDING_WITHDRAWAL_SEED, vault.key().as_ref(), &computation_offset.to_le_bytes()],
         bump,
     )]
-    pub pending_withdrawal: UncheckedAccount<'info>,
+    pub pending_withdrawal: Account<'info, PendingWithdrawal>,
     
-    // ===== Arcium Accounts (TODO: uncomment when arcium-anchor available) =====
-    // (Same as in store_private_config.rs)
+    // Arcium accounts
+    #[account(
+        init_if_needed,
+        space = 9,
+        payer = owner,
+        seeds = [&SIGN_PDA_SEED],
+        bump,
+        address = derive_sign_pda!(),
+    )]
+    pub sign_pda_account: Account<'info, SignerAccount>,
+    
+    #[account(address = derive_mxe_pda!())]
+    pub mxe_account: Account<'info, MXEAccount>,
+    
+    #[account(
+        mut,
+        address = derive_mempool_pda!(mxe_account, HydentityError::ComputationFailed)
+    )]
+    /// CHECK: mempool_account, checked by the arcium program
+    pub mempool_account: UncheckedAccount<'info>,
+    
+    #[account(
+        mut,
+        address = derive_execpool_pda!(mxe_account, HydentityError::ComputationFailed)
+    )]
+    /// CHECK: executing_pool, checked by the arcium program
+    pub executing_pool: UncheckedAccount<'info>,
+    
+    #[account(
+        mut,
+        address = derive_comp_pda!(computation_offset, mxe_account, HydentityError::ComputationFailed)
+    )]
+    /// CHECK: computation_account, checked by the arcium program
+    pub computation_account: UncheckedAccount<'info>,
+    
+    #[account(
+        address = derive_comp_def_pda!(COMP_DEF_OFFSET_GENERATE_PLAN)
+    )]
+    pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
+    
+    #[account(
+        mut,
+        address = derive_cluster_pda!(mxe_account, HydentityError::ComputationFailed)
+    )]
+    pub cluster_account: Account<'info, Cluster>,
+    
+    #[account(
+        mut,
+        address = ARCIUM_FEE_POOL_ACCOUNT_ADDRESS,
+    )]
+    pub pool_account: Account<'info, FeePool>,
+    
+    #[account(
+        address = ARCIUM_CLOCK_ACCOUNT_ADDRESS,
+    )]
+    pub clock_account: Account<'info, ClockAccount>,
     
     pub system_program: Program<'info, System>,
+    pub arcium_program: Program<'info, Arcium>,
 }
 
-// ===== Callback Handler (TODO: uncomment when arcium-anchor available) =====
-//
-// /// Callback from Arcium after MPC generates withdrawal plan
-// #[arcium_callback(encrypted_ix = "generate_withdrawal_plan")]
-// pub fn generate_withdrawal_plan_callback(
-//     ctx: Context<GenerateWithdrawalPlanCallback>,
-//     output: ComputationOutputs<GenerateWithdrawalPlanOutput>,
-// ) -> Result<()> {
-//     let result = match output {
-//         ComputationOutputs::Success(GenerateWithdrawalPlanOutput { field_0 }) => field_0,
-//         _ => return Err(HydentityError::ComputationFailed.into()),
-//     };
-//     
-//     let request = &mut ctx.accounts.withdrawal_request;
-//     let pending = &mut ctx.accounts.pending_withdrawal;
-//     let clock = Clock::get()?;
-//     
-//     // Mark request as processed
-//     request.plan_generated = true;
-//     
-//     // The result contains the encrypted withdrawal plan
-//     // Parse plan metadata from result
-//     let plan_id: [u8; 16] = result.ciphertexts[0][0..16].try_into().unwrap();
-//     let total_splits = result.ciphertexts[0][16];
-//     let expires_at = i64::from_le_bytes(result.ciphertexts[0][17..25].try_into().unwrap());
-//     
-//     // Initialize pending withdrawal with encrypted plan
-//     pending.initialize(
-//         request.vault,
-//         result.ciphertexts[0].try_into().unwrap_or([0u8; 1024]),
-//         result.nonce.to_le_bytes()[0..16].try_into().unwrap(),
-//         plan_id,
-//         total_splits,
-//         request.amount,
-//         clock.unix_timestamp,
-//         expires_at,
-//         request.computation_offset,
-//         ctx.bumps.pending_withdrawal,
-//     );
-//     
-//     msg!("Withdrawal plan generated");
-//     msg!("Plan ID: {:?}", plan_id);
-//     msg!("Total splits: {}", total_splits);
-//     msg!("Expires at: {}", expires_at);
-//     
-//     Ok(())
-// }
-//
-// #[callback_accounts("generate_withdrawal_plan")]
-// #[derive(Accounts)]
-// pub struct GenerateWithdrawalPlanCallback<'info> {
-//     pub arcium_program: Program<'info, Arcium>,
-//     
-//     #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_GENERATE_PLAN))]
-//     pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
-//     
-//     #[account(address = ::anchor_lang::solana_program::sysvar::instructions::ID)]
-//     pub instructions_sysvar: AccountInfo<'info>,
-//     
-//     #[account(mut)]
-//     pub withdrawal_request: Account<'info, WithdrawalRequest>,
-//     
-//     #[account(mut)]
-//     pub pending_withdrawal: Account<'info, PendingWithdrawal>,
-// }
-
-/// Execute a single split from a pending withdrawal
-/// 
-/// This instruction is called by the MPC cluster when it's time to
-/// execute a split. The MPC decrypts the plan, verifies timing,
-/// and signs the transfer transaction.
-/// 
-/// ## Flow
-/// 
-/// 1. MPC monitors pending withdrawals for due splits
-/// 2. When a split is due, MPC queues this computation
-/// 3. MPC decrypts destination and amount for this split
-/// 4. MPC signs transfer transaction
-/// 5. Transfer is broadcast to Solana
-/// 6. Callback updates split status
-pub fn execute_split_handler(
-    ctx: Context<ExecuteSplit>,
-    computation_offset: u64,
-    split_index: u8,
+/// Callback from Arcium after MPC generates withdrawal plan
+#[arcium_callback(encrypted_ix = "generate_withdrawal_plan")]
+pub fn generate_withdrawal_plan_callback(
+    ctx: Context<GenerateWithdrawalPlanCallback>,
+    output: SignedComputationOutputs<WithdrawalPlanOutput>,
 ) -> Result<()> {
-    let pending = &ctx.accounts.pending_withdrawal;
+    let result = match output.verify_output(
+        &ctx.accounts.cluster_account,
+        &ctx.accounts.computation_account,
+    ) {
+        Ok(WithdrawalPlanOutput { field_0 }) => field_0,
+        Err(_) => return Err(HydentityError::InvalidMpcResult.into()),
+    };
+    
+    let request = &mut ctx.accounts.withdrawal_request;
+    let pending = &mut ctx.accounts.pending_withdrawal;
     let clock = Clock::get()?;
     
-    // Verify withdrawal is active
+    // Mark request as processed
+    request.plan_generated = true;
+    
+    // Extract encrypted plan data from result
+    // The result contains Enc<Mxe, WithdrawalPlan>, which is encrypted bytes + nonce
+    // We need to store the encrypted bytes and extract metadata
+    // Note: The actual structure will be auto-generated by Arcium
+    // For now, assuming result contains:
+    // - field_0.ciphertexts: encrypted plan bytes (need to concatenate if multiple)
+    // - field_0.nonce: encryption nonce
+    
+    // The plan is encrypted, so we store the encrypted bytes as-is
+    // We'll need metadata (plan_id, total_splits, expires_at) but these are inside the encrypted plan
+    // For MVP, we'll use placeholder values and rely on the encrypted data
+    // TODO: Consider returning metadata separately or having a metadata struct
+    
+    // Extract nonce (assuming it's 16 bytes)
+    let nonce = result.nonce.to_le_bytes();
+    let nonce_bytes: [u8; 16] = nonce[0..16].try_into().unwrap_or([0u8; 16]);
+    
+    // Extract encrypted plan bytes
+    // Assuming result.ciphertexts is a Vec<[u8; 32]> or similar
+    // We need to concatenate to fit in [u8; 1024]
+    let mut encrypted_plan = [0u8; 1024];
+    let ciphertexts = &result.ciphertexts;
+    let mut offset = 0;
+    for ciphertext in ciphertexts.iter().take(32) {  // 32 * 32 = 1024 bytes
+        if offset + 32 <= 1024 {
+            encrypted_plan[offset..offset + 32].copy_from_slice(ciphertext);
+            offset += 32;
+        }
+    }
+    
+    // Use placeholder values for metadata
+    // These should ideally be extracted from the decrypted plan
+    // but for MVP we'll generate them from the computation offset
+    let computation_offset = request.computation_offset;
+    let plan_id_bytes = computation_offset.to_le_bytes();
+    let mut plan_id = [0u8; 16];
+    plan_id[0..8].copy_from_slice(&plan_id_bytes);
+    
+    // Default values (should be extracted from plan in production)
+    // TODO: Extract metadata from decrypted plan when available
+    let total_splits = 2u8;  // Placeholder
+    let expires_at = clock.unix_timestamp + (7 * 24 * 60 * 60); // 7 days from now
+    
+    // Update pending withdrawal with encrypted plan data
+    let pending = &mut ctx.accounts.pending_withdrawal;
+    
+    // Verify this pending withdrawal matches the request
     require!(
-        pending.is_active(),
-        HydentityError::WithdrawalNotActive
+        pending.vault == request.vault && pending.computation_offset == request.computation_offset,
+        HydentityError::InvalidVault
     );
     
-    // Verify not expired
-    require!(
-        !pending.is_expired(clock.unix_timestamp),
-        HydentityError::WithdrawalExpired
-    );
+    // Update with encrypted plan data
+    pending.encrypted_plan = encrypted_plan;
+    pending.nonce = nonce_bytes;
+    // Note: plan_id, total_splits, and expires_at are already set (placeholders)
+    // In production, these should be extracted from the decrypted plan
+    // For MVP, using placeholder values
     
-    // Verify split index is valid
-    require!(
-        split_index < pending.total_splits,
-        HydentityError::InvalidSplitIndex
-    );
+    msg!("Withdrawal plan generated");
+    msg!("Plan ID: {:?}", plan_id);
+    msg!("Total splits: {}", total_splits);
     
-    // TODO: Queue Arcium computation when arcium-anchor is available
-    // The computation will:
-    // 1. Decrypt the withdrawal plan
-    // 2. Get the split details (destination, amount)
-    // 3. Verify it's time to execute
-    // 4. Sign the transfer transaction
-    // 5. Return transfer details via callback
-    
-    msg!("Executing split {} of {}", split_index + 1, pending.total_splits);
+    emit!(WithdrawalPlanGenerated {
+        vault: request.vault,
+        plan_id,
+        total_splits,
+        timestamp: clock.unix_timestamp,
+    });
     
     Ok(())
 }
 
-/// Accounts for executing a withdrawal split
+#[callback_accounts("generate_withdrawal_plan")]
 #[derive(Accounts)]
-#[instruction(computation_offset: u64, split_index: u8)]
-pub struct ExecuteSplit<'info> {
-    /// Can be called by anyone (MPC nodes), but authorization is in the plan
+pub struct GenerateWithdrawalPlanCallback<'info> {
+    pub arcium_program: Program<'info, Arcium>,
+    
+    #[account(
+        address = derive_comp_def_pda!(COMP_DEF_OFFSET_GENERATE_PLAN)
+    )]
+    pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
+    
+    #[account(address = derive_mxe_pda!())]
+    pub mxe_account: Account<'info, MXEAccount>,
+    
+    /// CHECK: computation_account, checked by arcium program via constraints in the callback context
+    pub computation_account: UncheckedAccount<'info>,
+    
+    #[account(
+        address = derive_cluster_pda!(mxe_account, HydentityError::ComputationFailed)
+    )]
+    pub cluster_account: Account<'info, Cluster>,
+    
+    #[account(address = ::anchor_lang::solana_program::sysvar::instructions::ID)]
+    /// CHECK: instructions_sysvar, checked by the account constraint
+    pub instructions_sysvar: AccountInfo<'info>,
+    
+    #[account(mut)]
+    pub withdrawal_request: Account<'info, WithdrawalRequest>,
+    
+    #[account(
+        mut,
+        seeds = [PENDING_WITHDRAWAL_SEED, withdrawal_request.vault.as_ref(), &withdrawal_request.computation_offset.to_le_bytes()],
+        bump = pending_withdrawal.bump,
+    )]
+    pub pending_withdrawal: Account<'info, PendingWithdrawal>,
+}
+
+pub fn init_generate_plan_comp_def(
+    ctx: Context<InitGeneratePlanCompDef>,
+) -> Result<()> {
+    init_comp_def(ctx.accounts, None, None)?;
+    Ok(())
+}
+
+#[init_computation_definition_accounts("generate_withdrawal_plan", payer)]
+#[derive(Accounts)]
+pub struct InitGeneratePlanCompDef<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     
-    /// The pending withdrawal
     #[account(
         mut,
-        seeds = [PENDING_WITHDRAWAL_SEED, pending_withdrawal.vault.as_ref(), &pending_withdrawal.computation_offset.to_le_bytes()],
-        bump = pending_withdrawal.bump,
-        constraint = pending_withdrawal.is_active() @ HydentityError::WithdrawalNotActive,
+        address = derive_mxe_pda!()
     )]
-    pub pending_withdrawal: Account<'info, PendingWithdrawal>,
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
     
-    // ===== Arcium Accounts (TODO: uncomment when arcium-anchor available) =====
+    #[account(mut)]
+    /// CHECK: comp_def_account, checked by arcium program
+    pub comp_def_account: UncheckedAccount<'info>,
     
+    pub arcium_program: Program<'info, Arcium>,
     pub system_program: Program<'info, System>,
 }
 
-/// Cancel a pending withdrawal
-/// 
-/// Allows the vault owner to cancel a withdrawal before it completes.
-/// Any unexecuted splits will not be processed.
-pub fn cancel_withdrawal_handler(
-    ctx: Context<CancelWithdrawal>,
-) -> Result<()> {
-    let pending = &mut ctx.accounts.pending_withdrawal;
-    
-    // Verify withdrawal is still active
-    require!(
-        pending.is_active(),
-        HydentityError::WithdrawalNotActive
-    );
-    
-    // Cancel the withdrawal
-    pending.cancel();
-    
-    msg!("Withdrawal cancelled");
-    msg!("Completed {} of {} splits before cancellation", 
-        pending.completed_splits, pending.total_splits);
-    
-    Ok(())
+// Placeholder for the auto-generated output type
+// This will be generated by Arcium from the encrypted-ixs/generate_plan.rs return type
+// The actual structure will match SignedComputationOutputs<Enc<Mxe, WithdrawalPlan>>
+// For now, using a placeholder structure that matches the expected output format
+pub struct WithdrawalPlanOutput {
+    // The actual structure will be auto-generated by Arcium
+    // This placeholder matches the pattern from Arcium examples
+    pub field_0: WithdrawalPlanResultRaw,
 }
 
-/// Accounts for cancelling a withdrawal
-#[derive(Accounts)]
-pub struct CancelWithdrawal<'info> {
-    /// Vault owner (must sign)
-    #[account(mut)]
-    pub owner: Signer<'info>,
-    
-    /// The vault
-    #[account(
-        seeds = [VAULT_SEED, vault.sns_name_account.as_ref()],
-        bump = vault.bump,
-        constraint = vault.owner == owner.key() @ HydentityError::Unauthorized,
-    )]
-    pub vault: Account<'info, NameVault>,
-    
-    /// The pending withdrawal to cancel
-    #[account(
-        mut,
-        seeds = [PENDING_WITHDRAWAL_SEED, vault.key().as_ref(), &pending_withdrawal.computation_offset.to_le_bytes()],
-        bump = pending_withdrawal.bump,
-        constraint = pending_withdrawal.vault == vault.key() @ HydentityError::InvalidVault,
-    )]
-    pub pending_withdrawal: Account<'info, PendingWithdrawal>,
+// Placeholder for the result type structure
+// This will be replaced by Arcium-generated types
+// The actual type will represent the encrypted WithdrawalPlan output
+pub struct WithdrawalPlanResultRaw {
+    pub ciphertexts: Vec<[u8; 32]>,
+    pub nonce: u128,
 }
-

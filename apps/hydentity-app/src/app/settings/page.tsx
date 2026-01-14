@@ -36,7 +36,7 @@ const PRIVACY_PRESETS: Record<Exclude<PrivacyPreset, 'custom'>, PrivacySettings 
     label: 'High',
     description: 'Maximum privacy with longer delays',
     minSplits: 3,
-    maxSplits: 6,
+    maxSplits: 5,
     minDelayMins: 120, // 2 hours
     maxDelayMins: 480, // 8 hours
   },
@@ -68,6 +68,7 @@ export default function SettingsPage() {
   const [minDelayUnit, setMinDelayUnit] = useState<'mins' | 'hours' | 'days'>('mins');
   const [maxDelayValue, setMaxDelayValue] = useState(30);
   const [maxDelayUnit, setMaxDelayUnit] = useState<'mins' | 'hours' | 'days'>('mins');
+  const [usePrivacyCash, setUsePrivacyCash] = useState(false);
   
   // Minimum gap between min and max delays (in minutes)
   const MIN_DELAY_GAP = 10;
@@ -535,6 +536,35 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Privacy Cash Routing Toggle */}
+            <div className="mt-6 pt-6 border-t border-vault-border">
+              <label className="block text-[10px] text-hx-text mb-3 uppercase tracking-wider">
+                Withdrawal Routing
+              </label>
+              <div className="flex items-center justify-between p-4 bg-hx-bg/50 rounded-lg border border-vault-border">
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-hx-white mb-1">
+                    Privacy Cash Routing
+                  </div>
+                  <div className="text-[10px] text-hx-text/60">
+                    Route withdrawals through Privacy Cash ZK pool instead of Arcium splits
+                  </div>
+                </div>
+                <button
+                  onClick={() => setUsePrivacyCash(!usePrivacyCash)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    usePrivacyCash ? 'bg-hx-green' : 'bg-hx-text/30'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      usePrivacyCash ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
               </div>
             </div>
 

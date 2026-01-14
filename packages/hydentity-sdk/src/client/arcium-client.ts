@@ -68,6 +68,8 @@ export interface PrivateVaultConfig {
   autoWithdrawThreshold: bigint;
   /** Owner's public key */
   ownerPubkey: PublicKey;
+  /** Whether to route withdrawals through Privacy Cash instead of Arcium */
+  usePrivacyCash: boolean;
 }
 
 /**
@@ -393,8 +395,16 @@ export class ArciumClient {
     offset += 32;
     
     // Created at (8 bytes) - set by MPC
+    offset += 8;
     // Updated at (8 bytes) - set by MPC
-    // Reserved (32 bytes) - zeros
+    offset += 8;
+    
+    // Use Privacy Cash (1 byte)
+    view.setUint8(offset, config.usePrivacyCash ? 1 : 0);
+    offset += 1;
+    
+    // Reserved (31 bytes) - zeros
+    offset += 31;
     
     return bytes;
   }
@@ -432,6 +442,7 @@ export function createDefaultConfig(
     autoWithdrawEnabled: false,
     autoWithdrawThreshold: BigInt(0),
     ownerPubkey,
+    usePrivacyCash: false,
   };
 }
 

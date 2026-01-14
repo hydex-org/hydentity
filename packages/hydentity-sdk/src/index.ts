@@ -30,6 +30,9 @@ export type {
   ConfigUpdate,
 } from './client/private-config';
 
+// Privacy Cash integration (optional)
+export { PrivacyCashClient, createPrivacyCashClient } from './client/privacy-cash-client';
+
 // Interfaces
 export { ISigner } from './interfaces/signer';
 export { ITransactionForwarder, TransactionForwarderError } from './interfaces/transaction-forwarder';
@@ -55,6 +58,6 @@ export * from './utils/pda';
 export * from './utils/randomness';
 export * from './utils/sns';
 
-// Constants
+// Constants (exported after utils to avoid duplicate SOL_TLD_AUTHORITY)
 export * from './constants';
 

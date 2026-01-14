@@ -19,7 +19,6 @@ use anchor_lang::prelude::*;
 /// - Configuration changes don't reveal old or new values
 /// - Only the config_hash changes on updates (hash doesn't reveal contents)
 #[account]
-#[derive(Default)]
 pub struct EncryptedVaultConfig {
     /// The vault this config belongs to
     pub vault: Pubkey,
@@ -114,3 +113,19 @@ impl EncryptedVaultConfig {
 /// Seeds for EncryptedVaultConfig PDA derivation
 pub const ENCRYPTED_CONFIG_SEED: &[u8] = b"encrypted_config";
 
+impl Default for EncryptedVaultConfig {
+    fn default() -> Self {
+        Self {
+            vault: Pubkey::default(),
+            encrypted_data: [0u8; 512],
+            nonce: [0u8; 16],
+            version: 0,
+            config_hash: [0u8; 32],
+            last_updated_slot: 0,
+            last_updated_at: 0,
+            is_initialized: false,
+            bump: 0,
+            _reserved: [0u8; 64],
+        }
+    }
+}
