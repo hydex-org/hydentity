@@ -9,47 +9,50 @@ Hydentity creates a privacy layer between your public .sol domain and your priva
 1. **Vault Creation** - Creates a vault PDA that receives funds on behalf of your SNS name
 2. **Domain Transfer** - Optionally transfer domain ownership to the vault for enhanced privacy
 3. **Private Withdrawals** - Route withdrawals through Arcium MPC for encrypted destination handling
-4. **Umbra Integration** - Use Umbra Protocol mixer pools for additional unlinkability
+4. **Privacy Cash Integration** - Use Privacy Cash ZK mixer pool to break on-chain transaction links
 5. **Split & Delay** - Randomize amounts and timing to prevent transaction graph analysis
 
 ## Key Features
 
-- 🔒 **Encrypted Destinations** - Withdrawal destinations are encrypted with MPC, never visible on-chain
-- ⏱️ **Randomized Timing** - Configurable delays between splits prevent timing analysis
-- 💰 **Split Withdrawals** - Funds are split into random amounts across multiple transactions
-- 🔄 **Domain Protection** - Transfer SNS domain ownership to vault with reclaim capability
-- 🤖 **Auto-Withdraw** - Optional automatic withdrawals when vault reaches a threshold
+- **Encrypted Destinations** - Withdrawal destinations are encrypted with MPC, never visible on-chain
+- **Privacy Cash Routing** - ZK mixer pool breaks the link between vault deposits and final destinations
+- **Randomized Timing** - Configurable delays between splits prevent timing analysis
+- **Split Withdrawals** - Funds are split into random amounts across multiple transactions
+- **Domain Protection** - Transfer SNS domain ownership to vault with reclaim capability
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              USER (Off-chain)                                │
-│  - Generate encrypted config with x25519 key exchange                        │
-│  - Submit encrypted destinations to Hydentity program                        │
-└────────────────────────────────────────┬────────────────────────────────────┘
-                                         │
-┌────────────────────────────────────────▼────────────────────────────────────┐
-│                         HYDENTITY PROGRAM (On-chain)                         │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐ │
-│  │ NameVault    │  │ PrivacyPolicy│  │ EncryptedCfg │  │ PendingWithdraw  │ │
-│  │ (holds SOL)  │  │ (split/delay)│  │ (MPC-only)   │  │ (MPC-executed)   │ │
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────────┘ │
-└────────────────────────────────────────┬────────────────────────────────────┘
-                                         │
-┌────────────────────────────────────────▼────────────────────────────────────┐
-│                           ARCIUM MPC CLUSTER                                 │
-│  - Decrypts vault configurations (no single party has full access)          │
-│  - Generates randomized withdrawal plans                                     │
-│  - Executes splits with collective MPC signatures                            │
-│  - Manages timing delays autonomously                                        │
-└────────────────────────────────────────┬────────────────────────────────────┘
-                                         │
-┌────────────────────────────────────────▼────────────────────────────────────┐
-│                         DESTINATION WALLETS                                  │
-│  - Funds arrive at encrypted destinations                                    │
-│  - External observers cannot link to source vault                            │
-└─────────────────────────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------------------+
+|                              USER (Off-chain)                                |
+|  - Generate encrypted config with x25519 key exchange                        |
+|  - Submit encrypted destinations to Hydentity program                        |
++-------------------------------------+---------------------------------------+
+                                      |
++-------------------------------------v---------------------------------------+
+|                         HYDENTITY PROGRAM (On-chain)                         |
+|  +---------------+  +---------------+  +---------------+  +---------------+  |
+|  | NameVault     |  | VaultAuthority|  | PrivacyPolicy |  | EncryptedCfg  |  |
+|  | (metadata)    |  | (holds SOL)   |  | (split/delay) |  | (MPC-only)    |  |
+|  +---------------+  +---------------+  +---------------+  +---------------+  |
++-------------------------------------+---------------------------------------+
+                                      |
+          +---------------------------+---------------------------+
+          |                                                       |
++---------v---------+                                   +---------v---------+
+|   ARCIUM MPC      |                                   |   PRIVACY CASH    |
+|   CLUSTER         |                                   |   ZK MIXER        |
+| - Decrypts config |                                   | - Breaks tx links |
+| - Generates plans |                                   | - Anonymity set   |
+| - MPC signatures  |                                   | - Relayer service |
++-------------------+                                   +-------------------+
+          |                                                       |
+          +---------------------------+---------------------------+
+                                      |
++-------------------------------------v---------------------------------------+
+|                         DESTINATION WALLETS                                  |
+|  - Funds arrive at destinations with no on-chain link to source vault        |
++-----------------------------------------------------------------------------+
 ```
 
 ## Project Structure
@@ -57,54 +60,43 @@ Hydentity creates a privacy layer between your public .sol domain and your priva
 ```
 hydentity/
 ├── programs/hydentity/              # Anchor program (Rust)
-│   ├── src/
-│   │   ├── lib.rs                   # Program entrypoint
-│   │   ├── state/                   # Account structures
-│   │   │   ├── name_vault.rs        # Main vault account
-│   │   │   ├── privacy_policy.rs    # User privacy settings
-│   │   │   ├── encrypted_config.rs  # MPC-encrypted config
-│   │   │   └── pending_withdrawal.rs # Active withdrawal tracking
-│   │   ├── instructions/            # Instruction handlers
-│   │   │   ├── initialize_vault.rs
-│   │   │   ├── store_private_config.rs  # Arcium integration
-│   │   │   ├── request_withdrawal.rs    # MPC withdrawal
-│   │   │   ├── mark_domain_transferred.rs
-│   │   │   └── reclaim_domain.rs
-│   │   ├── errors.rs
-│   │   └── constants.rs
-│   └── encrypted-ixs/               # Arcis MPC instructions
-│       ├── store_config.rs          # Encrypted config storage
-│       ├── generate_plan.rs         # Randomized plan generation
-│       ├── execute_split.rs         # MPC-signed execution
-│       └── query_balance.rs         # Encrypted balance query
-│
-├── packages/hydentity-sdk/          # TypeScript SDK
 │   └── src/
-│       ├── client/
-│       │   ├── hydentity-client.ts  # Main SDK client
-│       │   ├── arcium-client.ts     # MPC encryption helpers
-│       │   ├── private-config.ts    # Config management
-│       │   ├── policy-engine.ts     # Split/delay generation
-│       │   └── umbra-bridge.ts      # Umbra integration
-│       ├── interfaces/              # Abstract interfaces
-│       ├── implementations/         # Concrete implementations
-│       ├── instruction-builders/    # Transaction builders
-│       └── utils/                   # Utilities (PDA, SNS, etc.)
+│       ├── lib.rs                   # Program entrypoint
+│       ├── state/                   # Account structures
+│       │   ├── name_vault.rs        # Main vault account
+│       │   ├── vault_authority.rs   # SOL holder & token authority
+│       │   ├── privacy_policy.rs    # User privacy settings
+│       │   └── encrypted_config.rs  # MPC-encrypted config
+│       ├── instructions/            # Instruction handlers
+│       │   ├── initialize_vault.rs
+│       │   ├── withdraw_direct.rs
+│       │   ├── store_private_config.rs
+│       │   ├── mark_domain_transferred.rs
+│       │   └── reclaim_domain.rs
+│       ├── errors.rs
+│       └── constants.rs
 │
-├── apps/hydentity-app/              # React dApp (Next.js)
+├── encrypted-ixs/                   # Arcium MPC instructions
+│   └── src/lib.rs                   # MPC circuit definitions
+│
+├── apps/hydentity-app/              # Next.js frontend
 │   └── src/
-│       ├── app/                     # Pages (dashboard, vault, settings)
+│       ├── app/                     # Pages (dashboard, vault, settings, setup)
+│       │   └── api/privacy-cash/    # Privacy Cash API routes
 │       ├── components/
-│       │   ├── PrivateConfigSetup.tsx   # Config wizard
-│       │   ├── WithdrawalStatus.tsx     # Withdrawal tracking
-│       │   └── VaultCard.tsx            # Vault display
-│       └── hooks/
-│           ├── useHydentity.ts          # Core vault hook
-│           ├── usePrivateConfig.ts      # Encrypted config
-│           └── useWithdrawals.ts        # Withdrawal management
+│       │   ├── Header.tsx
+│       │   ├── VaultCard.tsx
+│       │   └── NetworkSwitcher.tsx
+│       ├── hooks/
+│       │   ├── useHydentity.ts      # Core vault hook
+│       │   ├── usePrivateConfig.ts  # Arcium MPC config
+│       │   ├── usePrivacyCash.ts    # Privacy Cash integration
+│       │   └── useSnsDomains.ts     # SNS domain discovery
+│       └── contexts/
+│           └── NetworkContext.tsx   # Network switching
 │
-├── docs/
-│   └── arcium-integration-spec.md   # Detailed Arcium integration spec
+├── scripts/                         # Deployment scripts
+│   └── init-arcium-devnet.ts
 │
 └── tests/                           # Integration tests
 ```
@@ -117,6 +109,7 @@ hydentity/
 - Node.js 18+
 - pnpm 8+
 - Solana CLI
+- Anchor CLI 0.32+
 
 ### Installation
 
@@ -131,24 +124,24 @@ pnpm install
 # Build the Anchor program
 anchor build
 
-# Build the SDK
-pnpm --filter @hydentity/sdk build
-
 # Start the dApp
-pnpm --filter @hydentity/app dev
+cd apps/hydentity-app
+pnpm dev
 ```
 
-### Devnet Deployment
+### Deployment
+
+Program ID (Devnet & Mainnet): `7uBSpWjqTfoSNc45JRFTAiJ6agfNDZPPM48Scy987LDx`
 
 ```bash
-# Configure for devnet
-solana config set --url devnet
-
-# Deploy the program
+# Deploy to devnet
 anchor deploy --provider.cluster devnet
 
-# Or upgrade existing deployment
-solana program deploy target/deploy/hydentity.so --program-id <PROGRAM_ID> --url devnet
+# Deploy to mainnet
+anchor deploy --provider.cluster mainnet
+
+# Upgrade existing deployment
+anchor upgrade target/deploy/hydentity.so --program-id 7uBSpWjqTfoSNc45JRFTAiJ6agfNDZPPM48Scy987LDx
 ```
 
 ### Testing
@@ -157,103 +150,81 @@ solana program deploy target/deploy/hydentity.so --program-id <PROGRAM_ID> --url
 # Run Anchor tests
 anchor test
 
-# Run SDK tests
-pnpm --filter @hydentity/sdk test
-
 # Run app in dev mode
-pnpm --filter @hydentity/app dev
+cd apps/hydentity-app && pnpm dev
 ```
 
 ## Usage
 
-### SDK Quick Start
+### Creating a Vault
+
+1. Connect your wallet containing an SNS domain
+2. Navigate to Setup and select your domain
+3. Configure destination wallets (use fresh wallets for privacy)
+4. Set privacy level (Low/Medium/High)
+5. Confirm and sign the transaction
+
+### Privacy Cash Withdrawal Flow
+
+1. **Initialize Privacy Cash** - Sign a message to derive your encryption keypair
+2. **Withdraw to Pool** - Funds move from vault to Privacy Cash mixer pool
+3. **Private Withdrawal** - Withdraw from pool to any destination with no on-chain link
 
 ```typescript
-import { HydentityClient } from '@hydentity/sdk';
-import { Connection } from '@solana/web3.js';
+// Example: Withdraw privately via Privacy Cash
+const { withdraw } = usePrivacyCash();
 
-// Create client
-const client = HydentityClient.fromRpcUrl('https://api.devnet.solana.com');
-client.setSigner(yourSigner);
-
-// Initialize a vault for your SNS domain
-await client.initializeVault('myname'); // myname.sol
-
-// Configure privacy policy (on-chain, public settings)
-await client.updatePolicy('myname', {
-  minSplits: 2,
-  maxSplits: 5,
-  minDelaySeconds: 300,   // 5 minutes
-  maxDelaySeconds: 1800,  // 30 minutes
-});
+// Withdraw from private balance to fresh wallet
+await withdraw(amountLamports, 'FreshWalletAddress...');
 ```
 
-### Private Config Setup (Arcium)
+### Direct Withdrawal (Non-Private)
+
+For emergency access, funds can be withdrawn directly:
 
 ```typescript
-import { PrivateConfigManager, PRIVACY_PRESETS } from '@hydentity/sdk';
-
-// Initialize MPC client
-const configManager = new PrivateConfigManager(connection, programId);
-await configManager.initialize();
-
-// Create encrypted config with preset
-const config = configManager.createConfig(
-  ownerPubkey,
-  [destinationWallet1, destinationWallet2], // These are encrypted!
-  'medium' // 'low' | 'medium' | 'high'
-);
-
-// Store encrypted config (only MPC can decrypt)
-const { transaction } = await configManager.buildStoreConfigTransaction(
-  vaultPubkey,
-  config,
-  payer
-);
+const { withdrawDirect } = useHydentity();
+await withdrawDirect('mydomain', destinationPubkey, amount);
 ```
+
+Note: Direct withdrawals create a public on-chain link between vault and destination.
 
 ### Privacy Presets
 
 | Preset | Splits | Delay Range | Use Case |
 |--------|--------|-------------|----------|
-| **Low** | 1-3 | 1-10 minutes | Quick access, minimal obfuscation |
-| **Medium** | 2-5 | 5-30 minutes | Balanced privacy and convenience |
-| **High** | 3-6 | 2-8 hours | Maximum privacy, longer wait |
+| Low | 1-3 | 1-10 minutes | Quick access, minimal obfuscation |
+| Medium | 2-5 | 5-30 minutes | Balanced privacy and convenience |
+| High | 3-5 | 2-8 hours | Maximum privacy, longer wait |
 
-### On-Chain Accounts
+## On-Chain Accounts
 
 | Account | Seeds | Purpose |
 |---------|-------|---------|
-| NameVault | `["vault", sns_name_account]` | Holds received funds |
-| VaultAuthority | `["vault_auth", sns_name_account]` | Token authority & domain owner |
+| NameVault | `["vault", sns_name_account]` | Vault metadata and stats |
+| VaultAuthority | `["vault_auth", sns_name_account]` | Holds SOL, token authority |
 | PrivacyPolicy | `["policy", sns_name_account]` | Public privacy settings |
 | EncryptedConfig | `["encrypted_config", vault]` | MPC-encrypted destinations |
-| PendingWithdrawal | `["pending_withdrawal", vault, offset]` | Active withdrawal plans |
 
 ## Privacy Model
 
 ### What's Public (On-Chain)
 
 - Vault address and balance
-- Total withdrawal amount
-- Split count progress (X of Y complete)
-- Timing of split executions
+- Domain association (unless transferred)
+- Direct withdrawal destinations (if used)
 
-### What's Private (Encrypted)
+### What's Private
 
-- Destination wallet addresses
-- Individual split amounts
-- Exact timing delays
-- Which destination receives which split
+- Destinations configured via Arcium MPC
+- Privacy Cash withdrawal destinations
+- Individual split amounts and timing
+- Link between vault deposits and final destinations (via Privacy Cash)
 
 ### Trust Model
 
-Hydentity uses **distributed trust** via Arcium MPC:
-
-- No single MPC node can decrypt your configuration
-- Threshold of nodes required for decryption (e.g., 3-of-5)
-- Cryptographic verification of all computations
-- Economic penalties for malicious behavior
+- **Arcium MPC**: Distributed trust - no single node can decrypt configurations
+- **Privacy Cash**: ZK proofs ensure withdrawal validity without revealing source
 
 ## Domain Transfer
 
@@ -261,100 +232,60 @@ Transfer SNS domain ownership to your vault for enhanced privacy:
 
 ```typescript
 // Transfer domain to vault authority (hides original owner)
-await client.transferDomainToVault('myname');
+await transferDomainToVault('mydomain');
 
 // Reclaim domain when needed
-await client.reclaimDomain('myname', newOwnerPubkey);
+await reclaimDomain('mydomain', newOwnerPubkey);
 ```
 
-**Before Transfer:**
-```
-myname.sol → Owned by: YourWallet (VISIBLE)
-```
+**Before Transfer:** `mydomain.sol -> Owned by: YourWallet (visible)`
 
-**After Transfer:**
-```
-myname.sol → Owned by: VaultAuthority PDA (anonymous)
-```
+**After Transfer:** `mydomain.sol -> Owned by: VaultAuthority PDA`
 
 ## Security Considerations
 
-1. **Destination Privacy** - Never reveal destinations on-chain or in logs
-2. **Fresh Wallets** - Use fresh destination wallets not linked to your identity
-3. **Timing Variation** - Higher delays = harder to correlate transactions
-4. **Split Distribution** - More splits = more noise in transaction graph
-5. **Domain History** - Previous owners/resolvers may still be visible in historical data
+1. **Fresh Wallets** - Use destination wallets not linked to your identity
+2. **Privacy Cash** - Always use Privacy Cash routing for maximum privacy
+3. **Timing Variation** - Higher delays make transaction correlation harder
+4. **Domain History** - Previous owners may still be visible in historical data
+5. **Direct Withdrawals** - Avoid unless necessary; they expose vault-to-destination links
+
+## Environment Variables
+
+```bash
+# apps/hydentity-app/.env.local
+NEXT_PUBLIC_MAINNET_RPC=https://your-rpc-endpoint.com
+NEXT_PUBLIC_DEVNET_RPC=https://api.devnet.solana.com
+```
 
 ## Current Status
 
-### Implemented ✅
+### Completed
 
 - Vault creation and management
 - Privacy policy configuration
-- Domain transfer to vault
-- Domain reclaim from vault
-- Arcium integration structure (stubs)
-- SDK encryption helpers
-- React app with full UI
+- Domain transfer and reclaim
+- Privacy Cash ZK mixer integration
+- Mainnet deployment
+- Full React frontend with withdrawal UI
 
-### In Progress 🔄
+### In Progress
 
-- Arcium MPC integration (awaiting `arcium-anchor` crate release)
-- Umbra mixer integration
-- Relayer service for gas abstraction
-
-### Planned 📋
-
-- Multi-sig vault support
-- Time-locked withdrawals
-- Emergency recovery via MPC
+- Arcium MPC integration (encrypted config storage)
 - SPL token support
 
-## Development
+### Planned
 
-### Environment Variables
-
-```bash
-# .env.local (for dApp)
-NEXT_PUBLIC_RPC_URL=https://api.devnet.solana.com
-NEXT_PUBLIC_PROGRAM_ID=46mwRQo4f6sLy9cigZdVJgdEpeEVc6jLRG1H241Uk9GY
-```
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `Anchor.toml` | Anchor configuration |
-| `pnpm-workspace.yaml` | Monorepo workspace config |
-| `turbo.json` | Turborepo build config |
-| `programs/hydentity/src/lib.rs` | Program entrypoint |
-| `packages/hydentity-sdk/src/index.ts` | SDK exports |
-| `apps/hydentity-app/src/app/page.tsx` | Dashboard page |
+- Auto-withdrawal triggers
+- Multi-domain vault management
+- Mobile UI improvements
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Contributing
-
-Contributions welcome! Please read our contributing guidelines first.
-
-### Development Flow
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`anchor test && pnpm test`)
-5. Commit with conventional commits (`git commit -m 'feat: add amazing feature'`)
-6. Push to your fork (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+MIT License - see LICENSE for details.
 
 ## Related Projects
 
 - [Bonfida SNS SDK](https://github.com/Bonfida/sns-sdk) - Solana Name Service SDK
 - [Arcium Network](https://arcium.com) - MPC infrastructure for confidential computing
-- [Umbra Protocol](https://umbra.cash) - Stealth address protocol
-
----
-
-Built with ❤️ for privacy on Solana
+- [Privacy Cash](https://privacycash.org) - ZK mixer for Solana
