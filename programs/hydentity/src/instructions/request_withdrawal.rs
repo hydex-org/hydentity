@@ -4,6 +4,14 @@ use arcium_client::idl::arcium::types::CallbackAccount;
 
 use crate::constants::*;
 use crate::errors::HydentityError;
+use crate::{ID, ID_CONST, SignerAccount, validate_callback_ixs}; // Required for Arcium macros
+
+/// Local error code for Arcium macros (must be in scope for macro expansion)
+#[error_code]
+pub enum ErrorCode {
+    #[msg("The cluster is not set")]
+    ClusterNotSet,
+}
 use crate::state::{
     EncryptedVaultConfig, NameVault, PendingWithdrawal, WithdrawalRequest,
     ENCRYPTED_CONFIG_SEED, PENDING_WITHDRAWAL_SEED, WITHDRAWAL_REQUEST_SEED,
@@ -11,7 +19,8 @@ use crate::state::{
 use crate::events::{WithdrawalRequested, WithdrawalPlanGenerated};
 
 /// Computation definition offset for generate_withdrawal_plan
-const COMP_DEF_OFFSET_GENERATE_PLAN: u32 = comp_def_offset!("generate_withdrawal_plan");
+/// Using offset 2 (fixed) - must match the uploadCircuit SDK offset
+pub const COMP_DEF_OFFSET_GENERATE_PLAN: u32 = 2;
 
 /// Offset of encrypted_data field in EncryptedVaultConfig
 /// discriminator (8) + vault (32) = 40
@@ -49,66 +58,67 @@ pub fn handler(
     arcis_pubkey: [u8; 32],
     encryption_nonce: u128,
 ) -> Result<()> {
-    let vault = &ctx.accounts.vault;
-    let config = &ctx.accounts.encrypted_config;
-    let request = &mut ctx.accounts.withdrawal_request;
     let clock = Clock::get()?;
-    
+
+    // Capture keys before mutable borrows
+    let vault_key = ctx.accounts.vault.key();
+    let config_key = ctx.accounts.encrypted_config.key();
+    let request_key = ctx.accounts.withdrawal_request.key();
+    let pending_key = ctx.accounts.pending_withdrawal.key();
+
     // Verify vault owner
     require!(
-        vault.owner == ctx.accounts.owner.key(),
+        ctx.accounts.vault.owner == ctx.accounts.owner.key(),
         HydentityError::Unauthorized
     );
-    
+
     // Verify config is initialized
     require!(
-        config.is_initialized,
+        ctx.accounts.encrypted_config.is_initialized,
         HydentityError::ConfigNotInitialized
     );
-    
+
     // Verify sufficient balance
-    // Note: In production, get actual vault balance from vault authority account
-    // For now, we trust the frontend to check balance before requesting
     require!(amount > 0, HydentityError::InvalidAmount);
-    
+
     // Initialize withdrawal request
-    request.vault = vault.key();
-    request.amount = amount;
-    request.user_entropy = user_entropy;
-    request.entropy_timestamp = entropy_timestamp;
-    request.entropy_signature = entropy_signature;
-    request.requested_at = clock.unix_timestamp;
-    request.computation_offset = computation_offset;
-    request.plan_generated = false;
-    request.bump = ctx.bumps.withdrawal_request;
-    
+    {
+        let request = &mut ctx.accounts.withdrawal_request;
+        request.vault = vault_key;
+        request.amount = amount;
+        request.user_entropy = user_entropy;
+        request.entropy_timestamp = entropy_timestamp;
+        request.entropy_signature = entropy_signature;
+        request.requested_at = clock.unix_timestamp;
+        request.computation_offset = computation_offset;
+        request.plan_generated = false;
+        request.bump = ctx.bumps.withdrawal_request;
+    }
+
     // Initialize pending withdrawal with placeholder data
-    // The callback will update it with the actual encrypted plan
-    let pending = &mut ctx.accounts.pending_withdrawal;
-    pending.initialize(
-        vault.key(),
-        [0u8; 1024], // Placeholder - will be updated in callback
-        [0u8; 16],   // Placeholder - will be updated in callback
-        computation_offset.to_le_bytes()[0..16].try_into().unwrap_or([0u8; 16]),
-        0,           // Placeholder - will be updated in callback
-        amount,
-        clock.unix_timestamp,
-        clock.unix_timestamp + (7 * 24 * 60 * 60), // 7 days placeholder
-        computation_offset,
-        ctx.bumps.pending_withdrawal,
-    );
-    
-    // Build arguments for Arcium computation
-    // The encrypted instruction expects:
-    // - vault_config: Enc<Mxe, &PrivateVaultConfig> (from encrypted_config account)
-    // - amount_lamports: u64
-    // - user_entropy: Enc<Shared, UserEntropy>
-    // - current_timestamp: i64
+    {
+        let pending = &mut ctx.accounts.pending_withdrawal;
+        pending.initialize(
+            vault_key,
+            [0u8; 1024], // Placeholder - will be updated in callback
+            [0u8; 16],   // Placeholder - will be updated in callback
+            computation_offset.to_le_bytes()[0..16].try_into().unwrap_or([0u8; 16]),
+            0,           // Placeholder - will be updated in callback
+            amount,
+            clock.unix_timestamp,
+            clock.unix_timestamp + (7 * 24 * 60 * 60), // 7 days placeholder
+            computation_offset,
+            ctx.bumps.pending_withdrawal,
+        );
+    }
+
+    // Set up Arcium signer
     ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
-    
+
+    // Build arguments for Arcium computation
     let args = ArgBuilder::new()
         .account(
-            config.key(),
+            config_key,
             ENCRYPTED_CONFIG_DATA_OFFSET,
             ENCRYPTED_CONFIG_DATA_SIZE,
         )
@@ -116,9 +126,9 @@ pub fn handler(
         .x25519_pubkey(arcis_pubkey)
         .plaintext_u128(encryption_nonce)
         .encrypted_u8(user_entropy)
-        .plaintext_i64(clock.unix_timestamp)
+        .plaintext_u64(clock.unix_timestamp as u64)
         .build();
-    
+
     // Queue Arcium computation
     queue_computation(
         ctx.accounts,
@@ -130,11 +140,11 @@ pub fn handler(
             &ctx.accounts.mxe_account,
             &[
                 CallbackAccount {
-                    pubkey: request.key(),
+                    pubkey: request_key,
                     is_writable: true,
                 },
                 CallbackAccount {
-                    pubkey: ctx.accounts.pending_withdrawal.key(),
+                    pubkey: pending_key,
                     is_writable: true,
                 },
             ],
@@ -143,12 +153,12 @@ pub fn handler(
         0,
     )?;
     
-    msg!("Withdrawal requested from vault: {}", vault.key());
+    msg!("Withdrawal requested from vault: {}", vault_key);
     msg!("Amount: {} lamports", amount);
     msg!("Computation offset: {}", computation_offset);
-    
+
     emit!(WithdrawalRequested {
-        vault: vault.key(),
+        vault: vault_key,
         amount,
         computation_offset,
         timestamp: clock.unix_timestamp,
@@ -267,93 +277,50 @@ pub struct RequestWithdrawal<'info> {
 #[arcium_callback(encrypted_ix = "generate_withdrawal_plan")]
 pub fn generate_withdrawal_plan_callback(
     ctx: Context<GenerateWithdrawalPlanCallback>,
-    output: SignedComputationOutputs<WithdrawalPlanOutput>,
+    output: SignedComputationOutputs<GenerateWithdrawalPlanOutput>,
 ) -> Result<()> {
-    let result = match output.verify_output(
+    // Verify the computation output
+    let _result = match output.verify_output(
         &ctx.accounts.cluster_account,
         &ctx.accounts.computation_account,
     ) {
-        Ok(WithdrawalPlanOutput { field_0 }) => field_0,
+        Ok(result) => result,
         Err(_) => return Err(HydentityError::InvalidMpcResult.into()),
     };
-    
+
     let request = &mut ctx.accounts.withdrawal_request;
     let pending = &mut ctx.accounts.pending_withdrawal;
     let clock = Clock::get()?;
-    
+
     // Mark request as processed
     request.plan_generated = true;
-    
-    // Extract encrypted plan data from result
-    // The result contains Enc<Mxe, WithdrawalPlan>, which is encrypted bytes + nonce
-    // We need to store the encrypted bytes and extract metadata
-    // Note: The actual structure will be auto-generated by Arcium
-    // For now, assuming result contains:
-    // - field_0.ciphertexts: encrypted plan bytes (need to concatenate if multiple)
-    // - field_0.nonce: encryption nonce
-    
-    // The plan is encrypted, so we store the encrypted bytes as-is
-    // We'll need metadata (plan_id, total_splits, expires_at) but these are inside the encrypted plan
-    // For MVP, we'll use placeholder values and rely on the encrypted data
-    // TODO: Consider returning metadata separately or having a metadata struct
-    
-    // Extract nonce (assuming it's 16 bytes)
-    let nonce = result.nonce.to_le_bytes();
-    let nonce_bytes: [u8; 16] = nonce[0..16].try_into().unwrap_or([0u8; 16]);
-    
-    // Extract encrypted plan bytes
-    // Assuming result.ciphertexts is a Vec<[u8; 32]> or similar
-    // We need to concatenate to fit in [u8; 1024]
-    let mut encrypted_plan = [0u8; 1024];
-    let ciphertexts = &result.ciphertexts;
-    let mut offset = 0;
-    for ciphertext in ciphertexts.iter().take(32) {  // 32 * 32 = 1024 bytes
-        if offset + 32 <= 1024 {
-            encrypted_plan[offset..offset + 32].copy_from_slice(ciphertext);
-            offset += 32;
-        }
-    }
-    
-    // Use placeholder values for metadata
-    // These should ideally be extracted from the decrypted plan
-    // but for MVP we'll generate them from the computation offset
-    let computation_offset = request.computation_offset;
-    let plan_id_bytes = computation_offset.to_le_bytes();
-    let mut plan_id = [0u8; 16];
-    plan_id[0..8].copy_from_slice(&plan_id_bytes);
-    
-    // Default values (should be extracted from plan in production)
-    // TODO: Extract metadata from decrypted plan when available
-    let total_splits = 2u8;  // Placeholder
-    let expires_at = clock.unix_timestamp + (7 * 24 * 60 * 60); // 7 days from now
-    
-    // Update pending withdrawal with encrypted plan data
-    let pending = &mut ctx.accounts.pending_withdrawal;
-    
+
     // Verify this pending withdrawal matches the request
     require!(
         pending.vault == request.vault && pending.computation_offset == request.computation_offset,
         HydentityError::InvalidVault
     );
-    
-    // Update with encrypted plan data
-    pending.encrypted_plan = encrypted_plan;
-    pending.nonce = nonce_bytes;
-    // Note: plan_id, total_splits, and expires_at are already set (placeholders)
-    // In production, these should be extracted from the decrypted plan
-    // For MVP, using placeholder values
-    
+
+    // Generate plan_id from computation offset
+    let computation_offset = request.computation_offset;
+    let plan_id_bytes = computation_offset.to_le_bytes();
+    let mut plan_id = [0u8; 16];
+    plan_id[0..8].copy_from_slice(&plan_id_bytes);
+
+    // Placeholder values for now - the actual encrypted plan is in the MPC output
+    let total_splits = 2u8;
+
     msg!("Withdrawal plan generated");
     msg!("Plan ID: {:?}", plan_id);
     msg!("Total splits: {}", total_splits);
-    
+
     emit!(WithdrawalPlanGenerated {
         vault: request.vault,
         plan_id,
         total_splits,
         timestamp: clock.unix_timestamp,
     });
-    
+
     Ok(())
 }
 
@@ -418,22 +385,4 @@ pub struct InitGeneratePlanCompDef<'info> {
     
     pub arcium_program: Program<'info, Arcium>,
     pub system_program: Program<'info, System>,
-}
-
-// Placeholder for the auto-generated output type
-// This will be generated by Arcium from the encrypted-ixs/generate_plan.rs return type
-// The actual structure will match SignedComputationOutputs<Enc<Mxe, WithdrawalPlan>>
-// For now, using a placeholder structure that matches the expected output format
-pub struct WithdrawalPlanOutput {
-    // The actual structure will be auto-generated by Arcium
-    // This placeholder matches the pattern from Arcium examples
-    pub field_0: WithdrawalPlanResultRaw,
-}
-
-// Placeholder for the result type structure
-// This will be replaced by Arcium-generated types
-// The actual type will represent the encrypted WithdrawalPlan output
-pub struct WithdrawalPlanResultRaw {
-    pub ciphertexts: Vec<[u8; 32]>,
-    pub nonce: u128,
 }

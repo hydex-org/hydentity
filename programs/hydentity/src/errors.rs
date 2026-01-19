@@ -97,6 +97,12 @@ pub enum HydentityError {
     #[msg("Arcium computation failed")]
     ComputationFailed,
 
+    #[msg("Arcium computation was aborted")]
+    ComputationAborted,
+
+    #[msg("MPC cluster is not set")]
+    ClusterNotSet,
+
     #[msg("MPC cluster returned invalid result")]
     InvalidMpcResult,
 

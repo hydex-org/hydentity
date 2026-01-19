@@ -1,10 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { motion } from 'framer-motion';
+import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { Header } from '@/components/Header';
+import { usePrivateConfig, parseDuration } from '@/hooks/usePrivateConfig';
+import { useNetwork } from '@/contexts/NetworkContext';
+import { usePrivacyCash } from '@/hooks/usePrivacyCash';
+import { NetworkType } from '@/config/networks';
 
 type PrivacyPreset = 'low' | 'medium' | 'high' | 'custom';
 
@@ -57,9 +62,31 @@ function toMinutes(value: number, unit: 'mins' | 'hours' | 'days'): number {
 }
 
 export default function SettingsPage() {
-  const { connected, publicKey } = useWallet();
-  const [network, setNetwork] = useState<'devnet' | 'mainnet'>('devnet');
-  
+  const { connected, publicKey, signMessage } = useWallet();
+  const { initializeConfig, validateConfig, isLoading, error: configError } = usePrivateConfig();
+  const { network, setNetwork, config } = useNetwork();
+  const {
+    isAvailable: privacyCashAvailable,
+    isInitialized: privacyCashInitialized,
+    isLoading: privacyCashLoading,
+    error: privacyCashError,
+    balance: privacyCashBalance,
+    initializeWithWallet: initializePrivacyCashWithWallet,
+    withdraw: withdrawFromPrivacyCash,
+    refreshBalance: refreshPrivacyCashBalance,
+  } = usePrivacyCash();
+
+  // Privacy Cash local UI state
+  const [showPrivacyCashWithdraw, setShowPrivacyCashWithdraw] = useState(false);
+  const [privacyCashWithdrawAmount, setPrivacyCashWithdrawAmount] = useState('');
+  const [privacyCashWithdrawAddress, setPrivacyCashWithdrawAddress] = useState('');
+  const [privacyCashWithdrawStatus, setPrivacyCashWithdrawStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  // Destination wallets state
+  const [destinations, setDestinations] = useState<string[]>(['']);
+  const [destinationErrors, setDestinationErrors] = useState<string[]>([]);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
   // Privacy settings state - default to MEDIUM
   const [preset, setPreset] = useState<PrivacyPreset>('medium');
   const [minSplits, setMinSplits] = useState(PRIVACY_PRESETS.medium.minSplits);
@@ -68,7 +95,11 @@ export default function SettingsPage() {
   const [minDelayUnit, setMinDelayUnit] = useState<'mins' | 'hours' | 'days'>('mins');
   const [maxDelayValue, setMaxDelayValue] = useState(30);
   const [maxDelayUnit, setMaxDelayUnit] = useState<'mins' | 'hours' | 'days'>('mins');
-  const [usePrivacyCash, setUsePrivacyCash] = useState(false);
+  const [privacyCashRoutingEnabled, setPrivacyCashRoutingEnabled] = useState(false);
+
+  // Auto-withdraw settings
+  const [autoWithdrawEnabled, setAutoWithdrawEnabled] = useState(false);
+  const [autoWithdrawThreshold, setAutoWithdrawThreshold] = useState('');
   
   // Minimum gap between min and max delays (in minutes)
   const MIN_DELAY_GAP = 10;
@@ -245,7 +276,159 @@ export default function SettingsPage() {
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     e.target.select();
   };
-  
+
+  // ========== Destination Wallet Management ==========
+
+  const addDestination = useCallback(() => {
+    if (destinations.length < 5) {
+      setDestinations([...destinations, '']);
+    }
+  }, [destinations]);
+
+  const removeDestination = useCallback((index: number) => {
+    if (destinations.length > 1) {
+      setDestinations(destinations.filter((_, i) => i !== index));
+      setDestinationErrors(destinationErrors.filter((_, i) => i !== index));
+    }
+  }, [destinations, destinationErrors]);
+
+  const updateDestination = useCallback((index: number, value: string) => {
+    const newDestinations = [...destinations];
+    newDestinations[index] = value;
+    setDestinations(newDestinations);
+
+    // Clear error for this field
+    const newErrors = [...destinationErrors];
+    newErrors[index] = '';
+    setDestinationErrors(newErrors);
+  }, [destinations, destinationErrors]);
+
+  const validateDestinations = useCallback((): boolean => {
+    const errors: string[] = [];
+    let valid = true;
+
+    const nonEmptyDestinations = destinations.filter(d => d.trim() !== '');
+
+    if (nonEmptyDestinations.length === 0) {
+      errors[0] = 'At least one destination required';
+      valid = false;
+    }
+
+    destinations.forEach((dest, i) => {
+      if (dest.trim() === '') {
+        if (nonEmptyDestinations.length === 0 && i === 0) {
+          errors[i] = 'Required';
+        }
+        return;
+      }
+
+      try {
+        new PublicKey(dest.trim());
+      } catch {
+        errors[i] = 'Invalid Solana address';
+        valid = false;
+      }
+    });
+
+    setDestinationErrors(errors);
+    return valid;
+  }, [destinations]);
+
+  // ========== Save Configuration ==========
+
+  const handleSaveConfig = useCallback(async () => {
+    if (!publicKey) return;
+
+    // Validate destinations
+    if (!validateDestinations()) {
+      return;
+    }
+
+    setSaveStatus('saving');
+
+    try {
+      const validDestinations = destinations
+        .filter(d => d.trim() !== '')
+        .map(d => new PublicKey(d.trim()));
+
+      const minDelaySeconds = parseDuration(minDelayValue, minDelayUnit);
+      const maxDelaySeconds = parseDuration(maxDelayValue, maxDelayUnit);
+
+      const thresholdLamports = autoWithdrawEnabled && autoWithdrawThreshold
+        ? BigInt(Math.floor(parseFloat(autoWithdrawThreshold) * 1e9))
+        : BigInt(0);
+
+      // For now, we use a mock vault pubkey - in production this would come from the vault context
+      const mockVaultPubkey = publicKey;
+
+      await initializeConfig({
+        vaultPubkey: mockVaultPubkey,
+        destinations: validDestinations,
+        customSettings: {
+          minSplits,
+          maxSplits,
+          minDelaySeconds,
+          maxDelaySeconds,
+        },
+        autoWithdraw: {
+          enabled: autoWithdrawEnabled,
+          thresholdLamports,
+        },
+      });
+
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } catch (err) {
+      console.error('Failed to save config:', err);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  }, [
+    publicKey,
+    destinations,
+    minSplits,
+    maxSplits,
+    minDelayValue,
+    minDelayUnit,
+    maxDelayValue,
+    maxDelayUnit,
+    autoWithdrawEnabled,
+    autoWithdrawThreshold,
+    validateDestinations,
+    initializeConfig,
+  ]);
+
+  // ========== Privacy Cash Functions ==========
+
+  const handleInitializePrivacyCash = useCallback(async () => {
+    try {
+      await initializePrivacyCashWithWallet();
+      console.log('[Settings] Privacy Cash initialized');
+    } catch (err) {
+      console.error('[Settings] Failed to initialize Privacy Cash:', err);
+    }
+  }, [initializePrivacyCashWithWallet]);
+
+  const handlePrivacyCashWithdraw = useCallback(async () => {
+    if (!privacyCashWithdrawAmount || !privacyCashWithdrawAddress) return;
+
+    setPrivacyCashWithdrawStatus('loading');
+    try {
+      const lamports = Math.floor(parseFloat(privacyCashWithdrawAmount) * LAMPORTS_PER_SOL);
+      await withdrawFromPrivacyCash(lamports, privacyCashWithdrawAddress);
+      setPrivacyCashWithdrawStatus('success');
+      setPrivacyCashWithdrawAmount('');
+      setPrivacyCashWithdrawAddress('');
+      setShowPrivacyCashWithdraw(false);
+      await refreshPrivacyCashBalance();
+      setTimeout(() => setPrivacyCashWithdrawStatus('idle'), 3000);
+    } catch (err) {
+      console.error('[Settings] Privacy Cash withdrawal failed:', err);
+      setPrivacyCashWithdrawStatus('error');
+      setTimeout(() => setPrivacyCashWithdrawStatus('idle'), 3000);
+    }
+  }, [privacyCashWithdrawAmount, privacyCashWithdrawAddress, withdrawFromPrivacyCash, refreshPrivacyCashBalance]);
+
   if (!connected) {
     return (
       <main className="min-h-screen bg-hx-bg">
@@ -308,16 +491,16 @@ export default function SettingsPage() {
                 </div>
               </button>
               <button
-                onClick={() => setNetwork('mainnet')}
+                onClick={() => setNetwork('mainnet-beta')}
                 className={`p-3 rounded-lg border-2 transition-all ${
-                  network === 'mainnet'
+                  network === 'mainnet-beta'
                     ? 'border-hx-green bg-hx-green/10'
                     : 'border-vault-border hover:border-vault-accent'
                 }`}
               >
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${
-                    network === 'mainnet' ? 'bg-hx-green' : 'bg-hx-text'
+                    network === 'mainnet-beta' ? 'bg-hx-green' : 'bg-hx-text'
                   }`} />
                   <div className="text-left">
                     <p className="text-sm font-semibold text-hx-white">Mainnet</p>
@@ -325,6 +508,25 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </button>
+            </div>
+
+            {/* Network Features Indicator */}
+            <div className="mt-4 p-3 bg-hx-bg/50 rounded-lg">
+              <p className="text-[10px] text-hx-text uppercase tracking-wider mb-2">Available Features</p>
+              <div className="flex flex-wrap gap-2">
+                {config.features.directWithdrawals && (
+                  <span className="px-2 py-1 bg-hx-green/10 text-hx-green text-[10px] rounded">Direct Withdrawals</span>
+                )}
+                {config.features.mpcWithdrawals && (
+                  <span className="px-2 py-1 bg-hx-blue/10 text-hx-blue text-[10px] rounded">Arcium MPC</span>
+                )}
+                {config.features.privacyCashRouting && (
+                  <span className="px-2 py-1 bg-hx-purple/10 text-hx-purple text-[10px] rounded">Privacy Cash</span>
+                )}
+                {config.features.domainTransfer && (
+                  <span className="px-2 py-1 bg-hx-text/10 text-hx-text text-[10px] rounded">Domain Transfer</span>
+                )}
+              </div>
             </div>
           </motion.div>
 
@@ -340,6 +542,77 @@ export default function SettingsPage() {
               <p className="text-[10px] text-hx-text mb-1 uppercase tracking-wider">Connected Address</p>
               <p className="font-mono text-xs text-hx-white break-all">
                 {publicKey?.toBase58()}
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Destination Wallets */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="glass rounded-xl p-5"
+          >
+            <h2 className="text-base font-semibold mb-2 text-hx-white">Destination Wallets</h2>
+            <p className="text-xs text-hx-text mb-4">
+              Private wallets where withdrawals will be sent. These addresses are encrypted with MPC and never exposed on-chain.
+            </p>
+
+            <div className="space-y-3">
+              {destinations.map((dest, i) => (
+                <div key={i} className="flex gap-2">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={dest}
+                        onChange={(e) => updateDestination(i, e.target.value)}
+                        placeholder="Solana wallet address (e.g., 7xKX...)"
+                        className={`w-full px-3 py-2.5 bg-hx-bg border rounded-lg text-sm font-mono text-hx-white placeholder-hx-text/40 focus:outline-none transition-all ${
+                          destinationErrors[i]
+                            ? 'border-red-500/50 focus:border-red-500'
+                            : 'border-vault-border focus:border-hx-green'
+                        }`}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-hx-text/40">
+                        #{i + 1}
+                      </span>
+                    </div>
+                    {destinationErrors[i] && (
+                      <p className="text-[10px] text-red-400 mt-1 ml-1">{destinationErrors[i]}</p>
+                    )}
+                  </div>
+                  {destinations.length > 1 && (
+                    <button
+                      onClick={() => removeDestination(i)}
+                      className="px-2 text-hx-text hover:text-red-400 transition-colors self-start mt-2.5"
+                      title="Remove destination"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {destinations.length < 5 && (
+              <button
+                onClick={addDestination}
+                className="mt-3 text-xs text-hx-blue hover:text-hx-blue/80 transition-colors flex items-center gap-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                Add another destination ({destinations.length}/5)
+              </button>
+            )}
+
+            {/* Privacy note */}
+            <div className="mt-4 p-3 bg-hx-blue/5 border border-hx-blue/20 rounded-lg">
+              <p className="text-[10px] text-hx-text leading-relaxed">
+                <span className="text-hx-blue font-medium">Privacy:</span> Destinations are encrypted using Arcium MPC. The network collectively manages withdrawals without any single party knowing your addresses.
               </p>
             </div>
           </motion.div>
@@ -539,37 +812,260 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Privacy Cash Routing Toggle */}
+            {/* Privacy Cash Section */}
             <div className="mt-6 pt-6 border-t border-vault-border">
               <label className="block text-[10px] text-hx-text mb-3 uppercase tracking-wider">
-                Withdrawal Routing
+                Privacy Cash Pool
+              </label>
+
+              {!config.features.privacyCashRouting ? (
+                // Not available on this network
+                <div className="p-4 bg-hx-bg/50 rounded-lg border border-vault-border">
+                  <div className="flex items-center gap-2 text-hx-text/60">
+                    <span>🔒</span>
+                    <span className="text-sm">Privacy Cash not available on {config.displayName}</span>
+                  </div>
+                  <p className="text-[10px] text-hx-text/40 mt-2">
+                    Switch to Mainnet to access Privacy Cash ZK pool features.
+                  </p>
+                </div>
+              ) : !privacyCashAvailable ? (
+                // SDK not installed
+                <div className="p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                  <div className="flex items-center gap-2 text-yellow-400">
+                    <span>⚠️</span>
+                    <span className="text-sm font-medium">Privacy Cash SDK not installed</span>
+                  </div>
+                  <p className="text-[10px] text-hx-text mt-2">
+                    Install the privacycash package to enable ZK pool features.
+                  </p>
+                </div>
+              ) : !privacyCashInitialized ? (
+                // Available but not initialized
+                <div className="p-4 bg-hx-purple/10 rounded-lg border border-hx-purple/20">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <div className="flex items-center gap-2 text-hx-purple">
+                        <span>🔐</span>
+                        <span className="text-sm font-medium">Privacy Cash Ready</span>
+                      </div>
+                      <p className="text-[10px] text-hx-text mt-1">
+                        Initialize with your wallet to enable private withdrawals through the ZK pool.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleInitializePrivacyCash}
+                    disabled={privacyCashLoading || !signMessage}
+                    className="w-full py-2.5 bg-hx-purple text-white rounded-lg font-medium text-sm hover:bg-hx-purple/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {privacyCashLoading ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Initializing...
+                      </>
+                    ) : (
+                      <>
+                        <span>🔑</span>
+                        Initialize Privacy Cash
+                      </>
+                    )}
+                  </button>
+                  <p className="text-[9px] text-hx-text/40 mt-2 text-center">
+                    You will be asked to sign a message to derive your Privacy Cash key.
+                  </p>
+                </div>
+              ) : (
+                // Initialized - show balance and actions
+                <div className="space-y-3">
+                  {/* Balance Display */}
+                  <div className="p-4 bg-hx-purple/10 rounded-lg border border-hx-purple/20">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-hx-purple">🔒</span>
+                          <span className="text-sm font-medium text-hx-white">Privacy Cash Balance</span>
+                        </div>
+                        <p className="text-2xl font-bold text-hx-white mt-1">
+                          {privacyCashBalance ? privacyCashBalance.sol.toFixed(4) : '0.0000'} <span className="text-sm text-hx-text">SOL</span>
+                        </p>
+                      </div>
+                      <button
+                        onClick={refreshPrivacyCashBalance}
+                        disabled={privacyCashLoading}
+                        className="p-2 text-hx-text hover:text-hx-white transition-colors"
+                        title="Refresh balance"
+                      >
+                        <svg className={`h-5 w-5 ${privacyCashLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Withdraw Button */}
+                  {!showPrivacyCashWithdraw ? (
+                    <button
+                      onClick={() => setShowPrivacyCashWithdraw(true)}
+                      disabled={!privacyCashBalance || privacyCashBalance.lamports <= 0}
+                      className="w-full py-2.5 bg-hx-purple/20 border border-hx-purple/30 text-hx-purple rounded-lg font-medium text-sm hover:bg-hx-purple/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Withdraw from Privacy Cash
+                    </button>
+                  ) : (
+                    <div className="p-4 bg-hx-bg/50 rounded-lg border border-vault-border space-y-3">
+                      <div>
+                        <label className="block text-[10px] text-hx-text mb-1">Amount (SOL)</label>
+                        <input
+                          type="number"
+                          value={privacyCashWithdrawAmount}
+                          onChange={(e) => setPrivacyCashWithdrawAmount(e.target.value)}
+                          placeholder="0.0"
+                          step="0.0001"
+                          className="w-full px-3 py-2 bg-hx-bg border border-vault-border rounded-lg text-sm text-hx-white placeholder-hx-text/40 focus:outline-none focus:border-hx-purple"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-hx-text mb-1">Destination Address</label>
+                        <input
+                          type="text"
+                          value={privacyCashWithdrawAddress}
+                          onChange={(e) => setPrivacyCashWithdrawAddress(e.target.value)}
+                          placeholder="Solana wallet address..."
+                          className="w-full px-3 py-2 bg-hx-bg border border-vault-border rounded-lg text-sm text-hx-white font-mono placeholder-hx-text/40 focus:outline-none focus:border-hx-purple"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setShowPrivacyCashWithdraw(false);
+                            setPrivacyCashWithdrawAmount('');
+                            setPrivacyCashWithdrawAddress('');
+                          }}
+                          className="flex-1 py-2 bg-hx-bg border border-vault-border text-hx-text rounded-lg text-sm hover:bg-vault-hover transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handlePrivacyCashWithdraw}
+                          disabled={!privacyCashWithdrawAmount || !privacyCashWithdrawAddress || privacyCashWithdrawStatus === 'loading'}
+                          className="flex-1 py-2 bg-hx-purple text-white rounded-lg text-sm font-medium hover:bg-hx-purple/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {privacyCashWithdrawStatus === 'loading' ? 'Withdrawing...' : 'Withdraw'}
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-hx-text/40 text-center">
+                        Funds will be withdrawn from the ZK pool with no on-chain link to your vault.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Status Messages */}
+                  {privacyCashError && (
+                    <div className="p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-400">
+                      {privacyCashError}
+                    </div>
+                  )}
+                  {privacyCashWithdrawStatus === 'success' && (
+                    <div className="p-2 bg-hx-green/10 border border-hx-green/20 rounded text-xs text-hx-green">
+                      Withdrawal successful!
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Auto-Withdraw Settings */}
+            <div className="mt-6 pt-6 border-t border-vault-border">
+              <label className="block text-[10px] text-hx-text mb-3 uppercase tracking-wider">
+                Automatic Withdrawals
               </label>
               <div className="flex items-center justify-between p-4 bg-hx-bg/50 rounded-lg border border-vault-border">
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-hx-white mb-1">
-                    Privacy Cash Routing
+                    Auto-Withdraw
                   </div>
                   <div className="text-[10px] text-hx-text/60">
-                    Route withdrawals through Privacy Cash ZK pool instead of Arcium splits
+                    Automatically withdraw when vault balance exceeds threshold
                   </div>
                 </div>
                 <button
-                  onClick={() => setUsePrivacyCash(!usePrivacyCash)}
+                  onClick={() => setAutoWithdrawEnabled(!autoWithdrawEnabled)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    usePrivacyCash ? 'bg-hx-green' : 'bg-hx-text/30'
+                    autoWithdrawEnabled ? 'bg-hx-green' : 'bg-hx-text/30'
                   }`}
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      usePrivacyCash ? 'translate-x-6' : 'translate-x-1'
+                      autoWithdrawEnabled ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />
                 </button>
               </div>
+
+              {autoWithdrawEnabled && (
+                <div className="mt-3 p-4 bg-hx-bg/50 rounded-lg border border-vault-border">
+                  <label className="block text-[10px] text-hx-text mb-2 uppercase tracking-wider">
+                    Threshold (SOL)
+                  </label>
+                  <input
+                    type="number"
+                    value={autoWithdrawThreshold}
+                    onChange={(e) => setAutoWithdrawThreshold(e.target.value)}
+                    placeholder="e.g., 1.0"
+                    min="0"
+                    step="0.1"
+                    className="w-full px-3 py-2 bg-hx-bg border border-vault-border rounded-lg text-sm text-hx-white placeholder-hx-text/40 focus:outline-none focus:border-hx-green"
+                  />
+                  <p className="text-[10px] text-hx-text/60 mt-2">
+                    MPC will automatically initiate withdrawal when vault balance exceeds this amount.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <button className="w-full mt-6 py-2.5 bg-hx-green/10 border border-hx-green rounded-lg font-semibold text-sm text-hx-green hover:bg-hx-green/20 transition-all">
-              Save Defaults
+            {/* Error display */}
+            {configError && (
+              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <p className="text-xs text-red-400">{configError}</p>
+              </div>
+            )}
+
+            {/* Save button */}
+            <button
+              onClick={handleSaveConfig}
+              disabled={isLoading || saveStatus === 'saving'}
+              className={`w-full mt-6 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                saveStatus === 'saved'
+                  ? 'bg-hx-green/20 border border-hx-green text-hx-green'
+                  : saveStatus === 'error'
+                  ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+                  : 'bg-hx-green/10 border border-hx-green text-hx-green hover:bg-hx-green/20 disabled:opacity-50'
+              }`}
+            >
+              {isLoading || saveStatus === 'saving' ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Encrypting & Saving...
+                </span>
+              ) : saveStatus === 'saved' ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Configuration Saved
+                </span>
+              ) : saveStatus === 'error' ? (
+                'Save Failed - Try Again'
+              ) : (
+                'Save Configuration'
+              )}
             </button>
           </motion.div>
 

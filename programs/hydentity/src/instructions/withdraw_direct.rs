@@ -31,8 +31,9 @@ pub struct WithdrawDirect<'info> {
     )]
     pub vault: Account<'info, NameVault>,
     
-    /// The vault authority for signing SPL transfers
+    /// The vault authority for signing SPL transfers and holding SOL deposits
     #[account(
+        mut,
         seeds = [VAULT_AUTH_SEED, sns_name_account.key().as_ref()],
         bump = vault_authority.bump,
         constraint = vault_authority.vault == vault.key() @ HydentityError::InvalidPolicyConfig
@@ -106,22 +107,22 @@ pub fn handler(
         
         msg!("Direct withdrawal: {} SPL tokens to {}", amount, ctx.accounts.destination.key());
     } else {
-        // SOL withdrawal
-        let vault_lamports = ctx.accounts.vault.to_account_info().lamports();
-        let rent = Rent::get()?.minimum_balance(NameVault::LEN);
-        let available = vault_lamports.saturating_sub(rent);
-        
+        // SOL withdrawal from vault authority (where deposits are held)
+        let vault_auth_info = ctx.accounts.vault_authority.to_account_info();
+        let vault_auth_lamports = vault_auth_info.lamports();
+        let rent = Rent::get()?.minimum_balance(VaultAuthority::LEN);
+        let available = vault_auth_lamports.saturating_sub(rent);
+
         if available < amount {
             return Err(HydentityError::InsufficientBalance.into());
         }
-        
-        // Transfer SOL to destination
-        let vault_info = ctx.accounts.vault.to_account_info();
+
+        // Transfer SOL from vault authority to destination
         let destination_info = ctx.accounts.destination.to_account_info();
-        
-        **vault_info.try_borrow_mut_lamports()? -= amount;
+
+        **vault_auth_info.try_borrow_mut_lamports()? -= amount;
         **destination_info.try_borrow_mut_lamports()? += amount;
-        
+
         msg!("Direct withdrawal: {} lamports to {}", amount, ctx.accounts.destination.key());
     }
     

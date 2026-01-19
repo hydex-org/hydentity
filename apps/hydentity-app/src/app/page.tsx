@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { motion } from 'framer-motion';
@@ -11,7 +12,30 @@ import { useHydentity } from '@/hooks/useHydentity';
 
 export default function Home() {
   const { connected } = useWallet();
-  const { vaults, isLoading } = useHydentity();
+  const { vaults, isLoading, debugFetchAllVaults, lookupVaultByDomain } = useHydentity();
+  const [showLookup, setShowLookup] = useState(false);
+  const [lookupDomain, setLookupDomain] = useState('');
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
+  const handleLookup = async () => {
+    if (!lookupDomain.trim()) return;
+    setLookupLoading(true);
+    setLookupError(null);
+    try {
+      const vault = await lookupVaultByDomain(lookupDomain);
+      if (vault) {
+        setShowLookup(false);
+        setLookupDomain('');
+      } else {
+        setLookupError('Vault not found for this domain. Check the console for details.');
+      }
+    } catch (e) {
+      setLookupError(e instanceof Error ? e.message : 'Lookup failed');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
 
   return (
     <main className="min-h-screen bg-hx-bg">
@@ -32,7 +56,7 @@ export default function Home() {
           </h1>
           <p className="text-lg text-hx-text max-w-xl mx-auto mb-8">
             Accept SOL and tokens through your SNS domain while keeping your 
-            primary wallet private. Powered by Umbra Protocol.
+            primary wallet private. Powered by Arcium.
           </p>
           
           <ClientOnly>
@@ -90,9 +114,29 @@ export default function Home() {
 
               {/* Vaults Grid */}
               <div className="max-w-4xl mx-auto">
-                <h2 className="text-xl font-semibold mb-6 text-hx-white">
-                  Your Vaults
-                </h2>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-hx-white">
+                    Your Vaults
+                  </h2>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowLookup(true)}
+                      className="px-3 py-1.5 text-xs bg-hx-green/10 border border-hx-green/30 text-hx-green rounded hover:bg-hx-green/20 transition-colors"
+                    >
+                      Find My Vault
+                    </button>
+                    <button
+                      onClick={() => {
+                        debugFetchAllVaults().then((count) => {
+                          alert(`Found ${count} vault(s) on-chain. Check browser console for details.`);
+                        });
+                      }}
+                      className="px-3 py-1.5 text-xs bg-hx-card-bg border border-hx-text/20 text-hx-text rounded hover:border-hx-green/50 transition-colors"
+                    >
+                      Debug
+                    </button>
+                  </div>
+                </div>
                 
                 {isLoading ? (
                   <div className="grid gap-4 md:grid-cols-2">
@@ -140,18 +184,6 @@ export default function Home() {
                   </motion.div>
                 )}
               </div>
-
-              {/* Stats Section */}
-              <div className="max-w-4xl mx-auto mt-12 grid grid-cols-2 gap-4">
-                <div className="bg-hx-card-bg rounded-xl p-6 border border-hx-text/10">
-                  <p className="text-sm text-hx-text mb-1">Total Staked</p>
-                  <p className="text-2xl font-bold text-hx-white">0.00 SOL</p>
-                </div>
-                <div className="bg-hx-card-bg rounded-xl p-6 border border-hx-text/10">
-                  <p className="text-sm text-hx-text mb-1">Current APY</p>
-                  <p className="text-2xl font-bold text-hx-green">0.00%</p>
-                </div>
-              </div>
             </motion.section>
           )}
         </ClientOnly>
@@ -196,6 +228,68 @@ export default function Home() {
           )}
         </ClientOnly>
       </div>
+
+      {/* Find My Vault Modal */}
+      {showLookup && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-hx-bg rounded-xl p-6 max-w-md w-full border border-hx-text/20 shadow-2xl"
+          >
+            <h3 className="text-xl font-semibold text-hx-white mb-4">
+              Find My Vault
+            </h3>
+
+            <p className="text-hx-text text-sm mb-4">
+              If your vault isn&apos;t showing up automatically, enter the domain name to look it up directly.
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-hx-white mb-2">
+                Domain Name
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={lookupDomain}
+                  onChange={(e) => setLookupDomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  placeholder="mydomain"
+                  className="flex-1 px-4 py-3 bg-hx-bg border border-hx-text/20 rounded-lg text-hx-white font-mono text-sm focus:outline-none focus:border-hx-green"
+                  onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
+                />
+                <span className="text-hx-green font-medium">.sol</span>
+              </div>
+            </div>
+
+            {lookupError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <p className="text-xs text-red-400">{lookupError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowLookup(false);
+                  setLookupDomain('');
+                  setLookupError(null);
+                }}
+                className="flex-1 px-4 py-2.5 bg-hx-bg border border-hx-text/20 text-hx-text rounded-lg hover:bg-hx-text/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLookup}
+                disabled={!lookupDomain.trim() || lookupLoading}
+                className="flex-1 px-4 py-2.5 bg-hx-green text-hx-bg rounded-lg font-medium hover:bg-hx-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {lookupLoading ? 'Searching...' : 'Find Vault'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </main>
   );
 }

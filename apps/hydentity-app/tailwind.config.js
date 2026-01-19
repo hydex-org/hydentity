@@ -12,9 +12,11 @@ module.exports = {
         'hx': {
           green: '#97f01d',
           blue: '#00A8FF',
+          purple: '#9945FF',
           bg: '#0E1114',
           text: '#C8D0D4',
           white: '#F2F5F7',
+          'card-bg': '#151A1E',
         },
         // Extended palette based on brand
         'hyde': {

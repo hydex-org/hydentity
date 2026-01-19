@@ -116,6 +116,9 @@ temp/
 .parcel-cache/
 .eslintcache
 
+# Privacy Cash SDK cache (user-specific runtime data)
+apps/hydentity-app/cache/
+
 # Debug
 .debug/
 

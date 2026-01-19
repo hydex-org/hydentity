@@ -5,6 +5,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { motion } from 'framer-motion';
 import { ClientOnly } from './ClientOnly';
+import { NetworkSwitcher } from './NetworkSwitcher';
 
 export function Header() {
   const { connected } = useWallet();
@@ -41,13 +42,18 @@ export function Header() {
 
         {/* Right section */}
         <div className="flex items-center gap-3">
+          {/* Network Switcher */}
+          <ClientOnly>
+            <NetworkSwitcher />
+          </ClientOnly>
+
           {/* Hyde XP Badge */}
           <div className="hidden sm:flex items-center gap-1 px-3 py-1.5 bg-hx-card-bg rounded-lg border border-hx-text/10">
             <span className="text-hx-green font-semibold text-sm">HYDE</span>
             <span className="text-hx-green font-bold">XP</span>
             <span className="text-hx-white font-semibold ml-1">0.0</span>
           </div>
-          
+
           <ClientOnly fallback={<div className="h-10 w-32 bg-hx-card-bg rounded-lg animate-pulse" />}>
             <WalletMultiButton />
           </ClientOnly>

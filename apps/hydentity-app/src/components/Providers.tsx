@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import {
@@ -8,22 +8,69 @@ import {
   SolflareWalletAdapter,
   TorusWalletAdapter,
 } from '@solana/wallet-adapter-wallets';
-import { clusterApiUrl } from '@solana/web3.js';
 import { TestModeProvider } from '@/contexts/TestModeContext';
+import { NetworkProvider } from '@/contexts/NetworkContext';
+import { NetworkType, NETWORK_CONFIGS } from '@/config/networks';
 
 // Import wallet adapter CSS
 import '@solana/wallet-adapter-react-ui/styles.css';
+
+const NETWORK_STORAGE_KEY = 'hydentity-network';
+
+/**
+ * Get initial network from localStorage (must match NetworkContext logic)
+ */
+function getInitialNetwork(): NetworkType {
+  if (typeof window === 'undefined') return 'devnet';
+
+  try {
+    const stored = localStorage.getItem(NETWORK_STORAGE_KEY);
+    if (stored === 'devnet' || stored === 'mainnet-beta') {
+      return stored;
+    }
+  } catch {
+    // localStorage not available
+  }
+  return 'devnet';
+}
 
 interface ProvidersProps {
   children: React.ReactNode;
 }
 
 export function Providers({ children }: ProvidersProps) {
-  // Use custom RPC endpoint from env, fallback to devnet
-  const endpoint = useMemo(
-    () => process.env.NEXT_PUBLIC_RPC_ENDPOINT || clusterApiUrl('devnet'),
-    []
-  );
+  // Read network from localStorage to determine RPC endpoint
+  // This must be in sync with NetworkContext
+  const [network, setNetwork] = useState<NetworkType>('devnet');
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Hydrate from localStorage on mount
+  useEffect(() => {
+    const storedNetwork = getInitialNetwork();
+    setNetwork(storedNetwork);
+    setIsHydrated(true);
+
+    // Listen for network changes (from NetworkContext)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === NETWORK_STORAGE_KEY && e.newValue) {
+        const newNetwork = e.newValue as NetworkType;
+        if (newNetwork !== network) {
+          // Reload page to apply new RPC endpoint
+          window.location.reload();
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [network]);
+
+  // Get RPC endpoint based on current network
+  const endpoint = useMemo(() => {
+    const config = NETWORK_CONFIGS[network];
+    console.log(`[Providers] Network: ${network}, RPC Endpoint: ${config.rpcEndpoint}`);
+    return config.rpcEndpoint;
+  }, [network]);
 
   // Configure wallets
   const wallets = useMemo(
@@ -35,13 +82,24 @@ export function Providers({ children }: ProvidersProps) {
     []
   );
 
+  // Show loading state during hydration to prevent flash
+  if (!isHydrated) {
+    return (
+      <div className="min-h-screen bg-hx-bg flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-hx-green"></div>
+      </div>
+    );
+  }
+
   return (
-    <ConnectionProvider endpoint={endpoint}>
+    <ConnectionProvider endpoint={endpoint} config={{ commitment: 'confirmed' }}>
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>
-          <TestModeProvider>
-            {children}
-          </TestModeProvider>
+          <NetworkProvider>
+            <TestModeProvider>
+              {children}
+            </TestModeProvider>
+          </NetworkProvider>
         </WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
