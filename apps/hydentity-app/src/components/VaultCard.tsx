@@ -8,9 +8,10 @@ import { useHydentity } from '@/hooks/useHydentity';
 
 interface VaultCardProps {
   vault: VaultInfo;
+  privateCashBalance?: number | null; // Privacy Cash pool balance in SOL
 }
 
-export function VaultCard({ vault }: VaultCardProps) {
+export function VaultCard({ vault, privateCashBalance }: VaultCardProps) {
   const { registerDomainForVault } = useHydentity();
   const [showDomainInput, setShowDomainInput] = useState(false);
   const [domainInput, setDomainInput] = useState('');
@@ -89,16 +90,31 @@ export function VaultCard({ vault }: VaultCardProps) {
           </div>
         </div>
 
-        {/* Balance */}
-        <div className="mb-4">
-          <p className="text-2xl font-bold text-hx-white">
-            {formatSol(vault.balance)}
-            <span className="text-sm text-hx-text ml-2">SOL</span>
-          </p>
-          {vault.pendingDeposits > 0 && (
-            <p className="text-xs text-hx-green">
-              +{vault.pendingDeposits} pending deposits
+        {/* Balances */}
+        <div className="mb-4 space-y-2">
+          {/* Vault Balance */}
+          <div>
+            <p className="text-xs text-hx-text uppercase tracking-wider mb-0.5">Vault Balance</p>
+            <p className="text-2xl font-bold text-hx-white">
+              {formatSol(vault.balance)}
+              <span className="text-sm text-hx-text ml-2">SOL</span>
             </p>
+            {vault.pendingDeposits > 0 && (
+              <p className="text-xs text-hx-green">
+                +{vault.pendingDeposits} pending deposits
+              </p>
+            )}
+          </div>
+
+          {/* Privacy Cash Balance */}
+          {privateCashBalance !== undefined && privateCashBalance !== null && (
+            <div className="pt-2 border-t border-hx-text/10">
+              <p className="text-xs text-hx-text uppercase tracking-wider mb-0.5">Private Balance</p>
+              <p className="text-lg font-semibold text-hx-purple">
+                {privateCashBalance.toFixed(4)}
+                <span className="text-sm text-hx-text ml-2">SOL</span>
+              </p>
+            </div>
           )}
         </div>
 

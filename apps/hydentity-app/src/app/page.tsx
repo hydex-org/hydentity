@@ -9,10 +9,12 @@ import { Header } from '@/components/Header';
 import { VaultCard } from '@/components/VaultCard';
 import { ClientOnly } from '@/components/ClientOnly';
 import { useHydentity } from '@/hooks/useHydentity';
+import { usePrivacyCash } from '@/hooks/usePrivacyCash';
 
 export default function Home() {
   const { connected } = useWallet();
   const { vaults, isLoading, debugFetchAllVaults, lookupVaultByDomain } = useHydentity();
+  const { balance: privacyCashBalance, isInitialized: privacyCashInitialized } = usePrivacyCash();
   const [showLookup, setShowLookup] = useState(false);
   const [lookupDomain, setLookupDomain] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -157,7 +159,10 @@ export default function Home() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.1, duration: 0.3 }}
                       >
-                        <VaultCard vault={vault} />
+                        <VaultCard
+                          vault={vault}
+                          privateCashBalance={privacyCashInitialized ? privacyCashBalance?.sol : null}
+                        />
                       </motion.div>
                     ))}
                   </div>

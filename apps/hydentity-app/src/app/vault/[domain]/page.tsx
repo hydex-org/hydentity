@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { useConnection } from '@solana/wallet-adapter-react';
 import { useHydentity, VaultInfo } from '@/hooks/useHydentity';
 import { ClientOnly } from '@/components/ClientOnly';
 import { usePrivacyCash } from '@/hooks/usePrivacyCash';
@@ -21,6 +22,7 @@ export default function VaultDetailPage() {
 function VaultDetailContent() {
   const params = useParams();
   const router = useRouter();
+  const { connection } = useConnection();
   const domain = params.domain as string;
 
   const {
@@ -48,6 +50,7 @@ function VaultDetailContent() {
     balance: privacyCashBalance,
     withdraw: withdrawFromPrivacyCash,
     refreshBalance: refreshPrivacyCashBalance,
+    refreshDerivedKeyBalance,
   } = usePrivacyCash();
 
   const [vault, setVault] = useState<VaultInfo | null>(null);
@@ -83,6 +86,13 @@ function VaultDetailContent() {
       setVault(foundVault || null);
     }
   }, [vaults, domain]);
+
+  // Default to privacy routing when Privacy Cash is initialized
+  useEffect(() => {
+    if (privacyCashInitialized && privacyCashAvailable) {
+      setUsePrivacyRouting(true);
+    }
+  }, [privacyCashInitialized, privacyCashAvailable]);
 
   const handleTransferToVault = async () => {
     if (!vault) return;
@@ -241,14 +251,33 @@ function VaultDetailContent() {
         const vaultSig = await withdrawDirect(vault.domain, privacyCashDerivedKey, amountLamports);
         console.log('[Vault] Vault withdrawal complete:', vaultSig);
 
-        // Now deposit to Privacy Cash
-        console.log('[Vault] Depositing to Privacy Cash pool...');
-        const depositResult = await depositAfterVaultWithdrawal(Number(amountLamports));
+        // Get the actual balance at the derived key (may be less than requested due to rent/fees)
+        const derivedKeyBalance = await connection.getBalance(privacyCashDerivedKey);
+        console.log('[Vault] Derived key actual balance:', derivedKeyBalance / LAMPORTS_PER_SOL, 'SOL');
+
+        // Buffer for Privacy Cash internal operations:
+        // - ~1.9M lamports for UTXO account rent (2 accounts created during deposit)
+        // - ~890K lamports to keep derived key rent-exempt after deposit
+        // - ~5K lamports for transaction fee
+        // Total: ~3M lamports (0.003 SOL) to be safe
+        const TX_FEE_BUFFER = 3000000;
+        const depositAmount = derivedKeyBalance - TX_FEE_BUFFER;
+
+        if (depositAmount <= 0) {
+          throw new Error(`Insufficient balance at derived key for deposit. Balance: ${derivedKeyBalance / LAMPORTS_PER_SOL} SOL`);
+        }
+
+        // Now deposit to Privacy Cash using the actual available balance
+        console.log('[Vault] Depositing to Privacy Cash pool:', depositAmount / LAMPORTS_PER_SOL, 'SOL');
+        const depositResult = await depositAfterVaultWithdrawal(depositAmount);
         console.log('[Vault] Privacy Cash deposit complete:', depositResult.signature);
+
+        // Refresh the derived key balance after deposit
+        await refreshDerivedKeyBalance();
 
         setSuccess(
           `Privacy routing complete! Vault withdrawal: ${vaultSig.slice(0, 8)}... | ` +
-          `Pool deposit: ${depositResult.signature.slice(0, 8)}...`
+          `Pool deposit: ${depositResult.signature.slice(0, 8)}... (${(depositAmount / LAMPORTS_PER_SOL).toFixed(6)} SOL)`
         );
       } else {
         // Direct withdrawal (no privacy routing)
@@ -771,11 +800,20 @@ function VaultDetailContent() {
                     {(() => {
                       const lamports = Math.floor(parseFloat(withdrawAmount) * LAMPORTS_PER_SOL);
                       const fees = estimateFees(lamports);
+                      // Minimum 0.005 SOL for privacy routing (UTXO rent + fees)
+                      const MINIMUM_PRIVACY_ROUTING_SOL = 0.005;
+                      const amountSol = parseFloat(withdrawAmount);
+                      const isBelowMinimum = amountSol < MINIMUM_PRIVACY_ROUTING_SOL;
+
                       return (
                         <div className="space-y-1">
                           <div className="flex justify-between text-xs">
                             <span className="text-hx-text">Deposit fee:</span>
                             <span className="text-hx-white">{(fees.depositFee / LAMPORTS_PER_SOL).toFixed(6)} SOL</span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-hx-text">UTXO rent (refundable):</span>
+                            <span className="text-hx-white">~0.003 SOL</span>
                           </div>
                           <div className="flex justify-between text-xs">
                             <span className="text-hx-text">Withdrawal fee (0.25%):</span>
@@ -785,6 +823,15 @@ function VaultDetailContent() {
                             <span className="text-hx-text">Net amount:</span>
                             <span className="text-hx-green">{(fees.netAmount / LAMPORTS_PER_SOL).toFixed(6)} SOL</span>
                           </div>
+
+                          {/* Warning for amounts below minimum */}
+                          {isBelowMinimum && (
+                            <div className="mt-2 p-2 bg-red-500/10 rounded border border-red-500/20">
+                              <p className="text-xs text-red-400">
+                                ⚠️ Minimum {MINIMUM_PRIVACY_ROUTING_SOL} SOL required for privacy routing due to UTXO rent costs.
+                              </p>
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
@@ -881,7 +928,8 @@ function VaultDetailContent() {
                   !withdrawAmount ||
                   isWithdrawing ||
                   privacyCashLoading ||
-                  (usePrivacyRouting && !privacyCashInitialized)
+                  (usePrivacyRouting && !privacyCashInitialized) ||
+                  (usePrivacyRouting && parseFloat(withdrawAmount || '0') < 0.005)
                 }
                 className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                   usePrivacyRouting
@@ -1031,13 +1079,18 @@ function VaultDetailContent() {
               </p>
             </div>
 
-            {/* Fee Estimation */}
+            {/* Fee Estimation and Warnings */}
             {privacyCashWithdrawAmount && parseFloat(privacyCashWithdrawAmount) > 0 && (
               <div className="p-3 bg-hx-bg/50 rounded-lg border border-hx-text/10 mb-6">
                 <p className="text-xs text-hx-text mb-2">Estimated:</p>
                 {(() => {
-                  const lamports = Math.floor(parseFloat(privacyCashWithdrawAmount) * LAMPORTS_PER_SOL);
+                  const amountSol = parseFloat(privacyCashWithdrawAmount);
+                  const lamports = Math.floor(amountSol * LAMPORTS_PER_SOL);
                   const fees = estimateFees(lamports);
+                  // Recommended max withdrawal to avoid ZK circuit issues
+                  const RECOMMENDED_MAX_WITHDRAWAL_SOL = 0.05;
+                  const isAboveRecommended = amountSol > RECOMMENDED_MAX_WITHDRAWAL_SOL;
+
                   return (
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs">
@@ -1048,6 +1101,15 @@ function VaultDetailContent() {
                         <span className="text-hx-text">You&apos;ll receive:</span>
                         <span className="text-hx-green">~{((lamports - fees.withdrawFee) / LAMPORTS_PER_SOL).toFixed(4)} SOL</span>
                       </div>
+
+                      {/* Warning for large withdrawals */}
+                      {isAboveRecommended && (
+                        <div className="mt-2 p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
+                          <p className="text-xs text-yellow-400">
+                            ⚠️ Large withdrawals may fail due to SDK limitations. Recommend withdrawing max {RECOMMENDED_MAX_WITHDRAWAL_SOL} SOL at a time.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
