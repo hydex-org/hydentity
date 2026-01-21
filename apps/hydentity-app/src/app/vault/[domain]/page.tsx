@@ -1087,9 +1087,6 @@ function VaultDetailContent() {
                   const amountSol = parseFloat(privacyCashWithdrawAmount);
                   const lamports = Math.floor(amountSol * LAMPORTS_PER_SOL);
                   const fees = estimateFees(lamports);
-                  // Recommended max withdrawal to avoid ZK circuit issues
-                  const RECOMMENDED_MAX_WITHDRAWAL_SOL = 0.05;
-                  const isAboveRecommended = amountSol > RECOMMENDED_MAX_WITHDRAWAL_SOL;
 
                   return (
                     <div className="space-y-1">
@@ -1101,15 +1098,6 @@ function VaultDetailContent() {
                         <span className="text-hx-text">You&apos;ll receive:</span>
                         <span className="text-hx-green">~{((lamports - fees.withdrawFee) / LAMPORTS_PER_SOL).toFixed(4)} SOL</span>
                       </div>
-
-                      {/* Warning for large withdrawals */}
-                      {isAboveRecommended && (
-                        <div className="mt-2 p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
-                          <p className="text-xs text-yellow-400">
-                            ⚠️ Large withdrawals may fail due to SDK limitations. Recommend withdrawing max {RECOMMENDED_MAX_WITHDRAWAL_SOL} SOL at a time.
-                          </p>
-                        </div>
-                      )}
                     </div>
                   );
                 })()}
