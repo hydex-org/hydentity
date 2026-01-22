@@ -303,7 +303,7 @@ export function usePrivacyCash(): UsePrivacyCashReturn {
 
         // Hash the signature to get 32 bytes for the keypair seed
         // Using SHA-256 via Web Crypto API
-        const hashBuffer = await crypto.subtle.digest('SHA-256', signature);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', signature.buffer as ArrayBuffer);
         seed = new Uint8Array(hashBuffer);
 
         // Cache the seed for this session
