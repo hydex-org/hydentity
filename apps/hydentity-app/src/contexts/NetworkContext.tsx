@@ -34,6 +34,12 @@ import { createSnsAdapter, SnsAdapter } from '../adapters/sns-adapter';
 
 const STORAGE_KEY = 'hydentity-network';
 
+/**
+ * Default network when no preference is stored
+ * IMPORTANT: This must match the default in Providers.tsx
+ */
+const DEFAULT_NETWORK: NetworkType = 'mainnet-beta';
+
 interface NetworkContextValue {
   /** Current network */
   network: NetworkType;
@@ -71,7 +77,8 @@ interface NetworkProviderProps {
 export function NetworkProvider({ children, forceNetwork }: NetworkProviderProps) {
   const { connection } = useConnection();
 
-  // Initialize network from localStorage or detect from RPC
+  // Initialize network from localStorage or use default
+  // IMPORTANT: This logic must match Providers.tsx to avoid hydration mismatch
   const [network, setNetworkState] = useState<NetworkType>(() => {
     if (forceNetwork) return forceNetwork;
 
@@ -83,9 +90,8 @@ export function NetworkProvider({ children, forceNetwork }: NetworkProviderProps
       }
     }
 
-    // Default based on env var or fallback to devnet
-    const defaultRpc = process.env.NEXT_PUBLIC_RPC_ENDPOINT || '';
-    return detectNetworkFromEndpoint(defaultRpc);
+    // Use consistent default (must match Providers.tsx)
+    return DEFAULT_NETWORK;
   });
 
   // Derive config and adapter from network

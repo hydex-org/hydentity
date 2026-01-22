@@ -142,6 +142,8 @@ function parseNameVault(data: Buffer): {
 export interface VaultInfo {
   domain: string;
   vaultAddress: string;
+  /** The vault authority PDA - this is where SNS resolves to and where funds are sent */
+  vaultAuthorityAddress: string;
   ownerAddress: string;
   snsNameAccount: string;
   balance: bigint;
@@ -336,10 +338,13 @@ export function useHydentity() {
             console.warn('Could not find domain for SNS account:', snsNameKey);
           }
 
+          // Get vault authority PDA - this is where SNS resolves to and where funds are held
+          const [vaultAuthority] = getVaultAuthorityPda(vaultData.snsName, programId);
+          const vaultAuthorityAddress = vaultAuthority.toBase58();
+
           // Get balance from vault_authority PDA (where SOL deposits are held)
           let balance = 0;
           try {
-            const [vaultAuthority] = getVaultAuthorityPda(vaultData.snsName, programId);
             balance = await connection.getBalance(vaultAuthority);
           } catch (balanceErr) {
             console.warn('Failed to get balance for vault:', pubkey.toBase58(), balanceErr);
@@ -375,7 +380,6 @@ export function useHydentity() {
           // Check actual SNS ownership on-chain (in case flag is out of sync)
           let actualDomainTransferred = vaultData.domainTransferred;
           try {
-            const [vaultAuthority] = getVaultAuthorityPda(vaultData.snsName, programId);
             const snsAccountInfo = await connection.getAccountInfo(vaultData.snsName);
             if (snsAccountInfo && snsAccountInfo.data.length >= 64) {
               // SNS account data: first 32 bytes is parent, next 32 bytes is owner
@@ -393,6 +397,7 @@ export function useHydentity() {
           vaults.push({
             domain: domain || fallbackName,
             vaultAddress: pubkey.toBase58(),
+            vaultAuthorityAddress,
             ownerAddress: vaultData.owner.toBase58(),
             snsNameAccount: snsNameKey,
             balance: BigInt(balance),
@@ -1209,8 +1214,12 @@ export function useHydentity() {
       console.log('Vault owner:', vaultData.owner.toBase58());
       console.log('Vault SNS name:', vaultData.snsName.toBase58());
 
-      // Get balance from vault PDA (where SOL is held in old program)
-      const balance = await connection.getBalance(vaultPda);
+      // Get vault authority PDA - this is where SNS resolves to and where funds are held
+      const [vaultAuthority] = getVaultAuthorityPda(snsNameAccount, programId);
+      const vaultAuthorityAddress = vaultAuthority.toBase58();
+
+      // Get balance from vault authority (where SOL deposits are held)
+      const balance = await connection.getBalance(vaultAuthority);
 
       // Cache the domain
       try {
@@ -1225,6 +1234,7 @@ export function useHydentity() {
       const vaultInfo: VaultInfo = {
         domain: cleanDomain,
         vaultAddress: vaultPda.toBase58(),
+        vaultAuthorityAddress,
         ownerAddress: vaultData.owner.toBase58(),
         snsNameAccount: snsNameAccount.toBase58(),
         balance: BigInt(balance),

@@ -18,10 +18,16 @@ import '@solana/wallet-adapter-react-ui/styles.css';
 const NETWORK_STORAGE_KEY = 'hydentity-network';
 
 /**
+ * Default network when no preference is stored
+ * IMPORTANT: This must match the default in NetworkContext.tsx
+ */
+const DEFAULT_NETWORK: NetworkType = 'mainnet-beta';
+
+/**
  * Get initial network from localStorage (must match NetworkContext logic)
  */
 function getInitialNetwork(): NetworkType {
-  if (typeof window === 'undefined') return 'devnet';
+  if (typeof window === 'undefined') return DEFAULT_NETWORK;
 
   try {
     const stored = localStorage.getItem(NETWORK_STORAGE_KEY);
@@ -31,7 +37,7 @@ function getInitialNetwork(): NetworkType {
   } catch {
     // localStorage not available
   }
-  return 'devnet';
+  return DEFAULT_NETWORK;
 }
 
 interface ProvidersProps {
@@ -41,7 +47,7 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   // Read network from localStorage to determine RPC endpoint
   // This must be in sync with NetworkContext
-  const [network, setNetwork] = useState<NetworkType>('devnet');
+  const [network, setNetwork] = useState<NetworkType>(DEFAULT_NETWORK);
   const [isHydrated, setIsHydrated] = useState(false);
 
   // Hydrate from localStorage on mount

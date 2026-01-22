@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import type { VaultInfo } from '@/hooks/useHydentity';
@@ -15,6 +15,7 @@ export function VaultCard({ vault, privateCashBalance }: VaultCardProps) {
   const { registerDomainForVault } = useHydentity();
   const [showDomainInput, setShowDomainInput] = useState(false);
   const [domainInput, setDomainInput] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const formatSol = (lamports: bigint) => {
     return (Number(lamports) / 1e9).toFixed(4);
@@ -23,6 +24,20 @@ export function VaultCard({ vault, privateCashBalance }: VaultCardProps) {
   const formatAddress = (address: string) => {
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
+
+  // Copy vault authority address to clipboard (this is where funds are sent)
+  const handleCopyAddress = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      await navigator.clipboard.writeText(vault.vaultAuthorityAddress);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy address:', err);
+    }
+  }, [vault.vaultAuthorityAddress]);
 
   // Check if this is a fallback domain name
   const isFallbackDomain = vault.domain.startsWith('vault-');
@@ -50,18 +65,36 @@ export function VaultCard({ vault, privateCashBalance }: VaultCardProps) {
                 <h3 className="text-lg font-semibold text-yellow-400">
                   Unknown Domain
                 </h3>
-                <p className="text-xs text-hx-text font-mono">
-                  SNS: {formatAddress(vault.snsNameAccount)}
-                </p>
+                <button
+                  onClick={handleCopyAddress}
+                  className="text-xs text-hx-text font-mono hover:text-hx-green transition-colors flex items-center gap-1"
+                  title="Click to copy receiving address"
+                >
+                  SNS: {formatAddress(vault.vaultAuthorityAddress)}
+                  {copied ? (
+                    <span className="text-hx-green text-[10px]">Copied!</span>
+                  ) : (
+                    <span className="text-[10px] opacity-50">📋</span>
+                  )}
+                </button>
               </>
             ) : (
               <>
                 <h3 className="text-lg font-semibold text-hx-white group-hover:text-hx-green transition-colors">
                   {vault.domain}<span className="text-hx-green">.sol</span>
                 </h3>
-                <p className="text-xs text-hx-text font-mono">
-                  {formatAddress(vault.vaultAddress)}
-                </p>
+                <button
+                  onClick={handleCopyAddress}
+                  className="text-xs text-hx-text font-mono hover:text-hx-green transition-colors flex items-center gap-1"
+                  title="Click to copy receiving address"
+                >
+                  {formatAddress(vault.vaultAuthorityAddress)}
+                  {copied ? (
+                    <span className="text-hx-green text-[10px]">Copied!</span>
+                  ) : (
+                    <span className="text-[10px] opacity-50">📋</span>
+                  )}
+                </button>
               </>
             )}
           </div>
