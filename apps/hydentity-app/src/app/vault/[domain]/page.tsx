@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -67,6 +67,7 @@ function VaultDetailContent() {
   const [domainInput, setDomainInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [addressCopied, setAddressCopied] = useState(false);
   const [usePrivacyRouting, setUsePrivacyRouting] = useState(false);
   const [isSyncingState, setIsSyncingState] = useState(false);
 
@@ -324,6 +325,19 @@ function VaultDetailContent() {
     return `${address.slice(0, 6)}...${address.slice(-6)}`;
   };
 
+  // Copy vault authority address to clipboard (this is where funds are sent)
+  const handleCopyAddress = useCallback(async () => {
+    if (!vault?.vaultAuthorityAddress) return;
+
+    try {
+      await navigator.clipboard.writeText(vault.vaultAuthorityAddress);
+      setAddressCopied(true);
+      setTimeout(() => setAddressCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy address:', err);
+    }
+  }, [vault?.vaultAuthorityAddress]);
+
   if (!connected) {
     return (
       <div className="min-h-screen bg-hx-bg flex items-center justify-center">
@@ -396,9 +410,18 @@ function VaultDetailContent() {
               {vault.domain}<span className="text-hx-green">.sol</span>
             </h1>
           )}
-          <p className="text-hx-text font-mono text-sm">
-            Vault: {formatAddress(vault.vaultAddress)}
-          </p>
+          <button
+            onClick={handleCopyAddress}
+            className="text-hx-text font-mono text-sm hover:text-hx-green transition-colors flex items-center gap-2"
+            title="Click to copy receiving address"
+          >
+            {formatAddress(vault.vaultAuthorityAddress)}
+            {addressCopied ? (
+              <span className="text-hx-green text-xs">Copied!</span>
+            ) : (
+              <span className="text-xs opacity-50">📋</span>
+            )}
+          </button>
         </div>
 
         {/* Alerts */}
