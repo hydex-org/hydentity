@@ -56,7 +56,6 @@ export async function getPrivacyCashClient(
   const client = new PrivacyCash({
     RPC_url: config.rpcUrl,
     owner: secretKey,
-    enableDebug: true, // Enable verbose logging
   });
 
   // Cache for future requests
