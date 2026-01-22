@@ -2,9 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
 
-  // Exclude problematic packages from server-side bundling
-  // These packages have Node.js-specific code or WASM that webpack can't handle
+  // Enable instrumentation hook for Vercel cache setup
+  // The instrumentation.ts file patches node-localstorage for serverless
   experimental: {
+    instrumentationHook: true,
+    // Exclude problematic packages from server-side bundling
+    // These packages have Node.js-specific code or WASM that webpack can't handle
     serverComponentsExternalPackages: [
       'privacycash',
       '@lightprotocol/hasher.rs',
