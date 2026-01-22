@@ -2,8 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
 
-  // Exclude problematic packages from server-side bundling
-  // These packages have Node.js-specific code or WASM that webpack can't handle
   experimental: {
     serverComponentsExternalPackages: [
       'privacycash',
@@ -39,4 +37,3 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
-
