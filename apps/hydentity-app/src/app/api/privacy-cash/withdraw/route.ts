@@ -7,6 +7,29 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withdraw } from '../service';
+import fs from 'fs';
+import path from 'path';
+
+// Force nodejs runtime
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+// Log circuit file locations for debugging
+const circuitPath = process.env.PRIVACYCASH_CIRCUIT_PATH;
+console.log('[withdraw route] PRIVACYCASH_CIRCUIT_PATH:', circuitPath);
+console.log('[withdraw route] cwd:', process.cwd());
+
+// Check multiple possible locations
+const possiblePaths = [
+  circuitPath ? `${circuitPath}.wasm` : null,
+  path.join(process.cwd(), 'circuit2', 'transaction2.wasm'),
+  path.join(process.cwd(), '..', '..', 'circuit2', 'transaction2.wasm'),
+  '/var/task/circuit2/transaction2.wasm',
+].filter(Boolean) as string[];
+
+for (const p of possiblePaths) {
+  console.log(`[withdraw route] Checking ${p}: ${fs.existsSync(p)}`);
+}
 
 // Mainnet Privacy Cash config
 const PRIVACY_CASH_CONFIG = {

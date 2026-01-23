@@ -85,8 +85,8 @@ importers:
         specifier: ^14.2.0
         version: 14.2.35(@babel/core@7.28.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       privacycash:
-        specifier: https://github.com/hydex-org/privacy-cash-sdk/tarball/6517d1a
-        version: https://github.com/hydex-org/privacy-cash-sdk/tarball/6517d1a(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
+        specifier: https://github.com/hydex-org/privacy-cash-sdk/tarball/2d6ac2b
+        version: https://github.com/hydex-org/privacy-cash-sdk/tarball/2d6ac2b(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -5067,9 +5067,9 @@ packages:
     resolution: {integrity: sha512-Pdlw/oPxN+aXdmM9R00JVC9WVFoCLTKJvDVLgmJ+qAffBMxsV85l/Lu7sNx4zSzPyoL2euImuEwHhOXdEgNFZQ==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
 
-  privacycash@https://github.com/hydex-org/privacy-cash-sdk/tarball/6517d1a:
-    resolution: {tarball: https://github.com/hydex-org/privacy-cash-sdk/tarball/6517d1a}
-    version: 1.1.12
+  privacycash@https://github.com/hydex-org/privacy-cash-sdk/tarball/2d6ac2b:
+    resolution: {tarball: https://github.com/hydex-org/privacy-cash-sdk/tarball/2d6ac2b}
+    version: 1.1.13
 
   process-nextick-args@2.0.1:
     resolution: {integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==}
@@ -13038,7 +13038,7 @@ snapshots:
       ansi-styles: 5.2.0
       react-is: 18.3.1
 
-  privacycash@https://github.com/hydex-org/privacy-cash-sdk/tarball/6517d1a(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10):
+  privacycash@https://github.com/hydex-org/privacy-cash-sdk/tarball/2d6ac2b(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10):
     dependencies:
       '@coral-xyz/anchor': 0.31.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@ethersproject/keccak256': 5.8.0
