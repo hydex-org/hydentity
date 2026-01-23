@@ -2,6 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  // Use standalone output to include all files (not serverless)
+  // This fixes the circuit file loading issue on Vercel
+  output: 'standalone',
+
   experimental: {
     instrumentationHook: true,
     // Exclude packages with native/WASM dependencies from bundling
