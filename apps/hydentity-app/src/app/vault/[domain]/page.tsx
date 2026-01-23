@@ -198,8 +198,13 @@ function VaultDetailContent() {
 
       console.log('[Vault] Privacy Cash withdrawal complete:', result.signature);
 
+      // Store the signature for the success message link
+      const txSignature = result.signature;
+      const amountReceived = (result.amountReceived / LAMPORTS_PER_SOL).toFixed(4);
+      const recipientShort = privacyCashWithdrawDestination.slice(0, 8);
+
       setSuccess(
-        `Privacy withdrawal complete! ${(result.amountReceived / LAMPORTS_PER_SOL).toFixed(4)} SOL sent to ${privacyCashWithdrawDestination.slice(0, 8)}... | Tx: ${result.signature.slice(0, 8)}...`
+        `PRIVACY_WITHDRAWAL:${amountReceived}:${recipientShort}:${txSignature}`
       );
 
       // Close modal and reset form
@@ -441,7 +446,26 @@ function VaultDetailContent() {
             animate={{ opacity: 1, y: 0 }}
             className="mb-6 p-4 bg-hx-green/10 border border-hx-green/30 rounded-lg text-hx-green"
           >
-            {success}
+            {success.startsWith('PRIVACY_WITHDRAWAL:') ? (
+              (() => {
+                const [, amount, recipient, signature] = success.split(':');
+                return (
+                  <span>
+                    Privacy withdrawal complete! {amount} SOL sent to {recipient}... |{' '}
+                    <a
+                      href={`https://orbmarkets.io/tx/${signature}?tab=summary`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-hx-white transition-colors"
+                    >
+                      Tx: {signature.slice(0, 8)}...
+                    </a>
+                  </span>
+                );
+              })()
+            ) : (
+              success
+            )}
           </motion.div>
         )}
 
@@ -839,7 +863,7 @@ function VaultDetailContent() {
                             <span className="text-hx-white">~0.003 SOL</span>
                           </div>
                           <div className="flex justify-between text-xs">
-                            <span className="text-hx-text">Withdrawal fee (0.25%):</span>
+                            <span className="text-hx-text">Withdrawal fee (0.35% + rent):</span>
                             <span className="text-hx-white">{(fees.withdrawFee / LAMPORTS_PER_SOL).toFixed(6)} SOL</span>
                           </div>
                           <div className="flex justify-between text-xs font-medium pt-1 border-t border-hx-text/10">
@@ -1072,8 +1096,20 @@ function VaultDetailContent() {
                 <input
                   type="number"
                   step="0.0001"
+                  min="0"
+                  max={privacyCashBalance?.sol ?? 0}
                   value={privacyCashWithdrawAmount}
-                  onChange={(e) => setPrivacyCashWithdrawAmount(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const maxBalance = privacyCashBalance?.sol ?? 0;
+                    // Allow empty input or valid numbers up to max balance
+                    if (value === '' || parseFloat(value) <= maxBalance) {
+                      setPrivacyCashWithdrawAmount(value);
+                    } else {
+                      // Cap at max balance
+                      setPrivacyCashWithdrawAmount(maxBalance.toString());
+                    }
+                  }}
                   placeholder="0.0000"
                   className="w-full px-4 py-3 bg-hx-bg border border-hx-text/20 rounded-lg text-hx-white font-mono text-sm focus:outline-none focus:border-hx-purple pr-16"
                 />
@@ -1110,16 +1146,22 @@ function VaultDetailContent() {
                   const amountSol = parseFloat(privacyCashWithdrawAmount);
                   const lamports = Math.floor(amountSol * LAMPORTS_PER_SOL);
                   const fees = estimateFees(lamports);
+                  const percentageFee = Math.floor(lamports * 0.0035); // 0.35%
+                  const rentFee = 6000000; // 0.006 SOL
 
                   return (
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs">
-                        <span className="text-hx-text">Withdrawal fee (0.25%):</span>
-                        <span className="text-hx-white">{(fees.withdrawFee / LAMPORTS_PER_SOL).toFixed(6)} SOL</span>
+                        <span className="text-hx-text">Withdrawal fee (0.35%):</span>
+                        <span className="text-hx-white">{(percentageFee / LAMPORTS_PER_SOL).toFixed(6)} SOL</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-hx-text">Rent fee:</span>
+                        <span className="text-hx-white">{(rentFee / LAMPORTS_PER_SOL).toFixed(4)} SOL</span>
                       </div>
                       <div className="flex justify-between text-xs font-medium pt-1 border-t border-hx-text/10">
                         <span className="text-hx-text">You&apos;ll receive:</span>
-                        <span className="text-hx-green">~{((lamports - fees.withdrawFee) / LAMPORTS_PER_SOL).toFixed(4)} SOL</span>
+                        <span className="text-hx-green">~{(fees.netAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL</span>
                       </div>
                     </div>
                   );

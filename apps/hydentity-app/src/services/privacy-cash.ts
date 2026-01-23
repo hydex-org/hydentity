@@ -255,27 +255,33 @@ export function createPrivacyCashService(
 
 /**
  * Estimate fees for Privacy Cash operations
+ *
+ * Fee rates fetched from https://api3.privacycash.org/config
+ * - withdraw_fee_rate: 0.0035 (0.35%)
+ * - withdraw_rent_fee: 0.006 SOL
  */
 export function estimatePrivacyCashFees(lamports: number): {
   depositFee: number;
   withdrawFee: number;
+  withdrawRentFee: number;
   totalFees: number;
   netAmount: number;
 } {
-  // Privacy Cash fees (approximate):
+  // Privacy Cash fees (from relayer config):
   // - Deposit: Free (just SOL tx fee ~0.000005 SOL)
-  // - Withdrawal: ~0.25% + rent recovery (~0.002 SOL)
+  // - Withdrawal: 0.35% + rent fee (0.006 SOL)
   const depositFee = 5000; // ~0.000005 SOL tx fee
-  const withdrawFeeRate = 0.0025; // 0.25%
-  const withdrawBaseFee = 2000000; // ~0.002 SOL rent recovery
+  const withdrawFeeRate = 0.0035; // 0.35%
+  const withdrawRentFee = 6000000; // 0.006 SOL rent fee
 
-  const withdrawFee = Math.floor(lamports * withdrawFeeRate) + withdrawBaseFee;
+  const withdrawFee = Math.floor(lamports * withdrawFeeRate) + withdrawRentFee;
   const totalFees = depositFee + withdrawFee;
   const netAmount = lamports - totalFees;
 
   return {
     depositFee,
     withdrawFee,
+    withdrawRentFee,
     totalFees,
     netAmount,
   };
