@@ -12,9 +12,9 @@ const nextConfig = {
   },
 
   // Include circuit files in serverless function bundles
-  // These are loaded at runtime by privacycash SDK
+  // These are copied from node_modules during prebuild
   outputFileTracingIncludes: {
-    '/api/privacy-cash/*': ['./node_modules/privacycash/circuit2/**/*'],
+    '/api/privacy-cash/*': ['./circuit2/**/*'],
   },
 
   webpack: (config, { isServer }) => {
