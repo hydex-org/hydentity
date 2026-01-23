@@ -20,13 +20,17 @@ export type NetworkType = 'devnet' | 'mainnet-beta';
 /**
  * Get the RPC endpoint for client-side use.
  * Uses the proxy endpoint to keep API keys server-side.
+ *
+ * IMPORTANT: Call this function at runtime (e.g., in useEffect or event handlers),
+ * not at module load time, since window.location is not available during SSR.
  */
-function getClientRpcEndpoint(network: NetworkType): string {
-  // In browser, use the proxy endpoint
+export function getClientRpcEndpoint(network: NetworkType): string {
+  // In browser, use the proxy endpoint with full URL (Connection requires http/https)
   if (typeof window !== 'undefined') {
-    return `/api/rpc/${network}`;
+    return `${window.location.origin}/api/rpc/${network}`;
   }
-  // During SSR/build, use env vars (these won't be exposed to client bundle)
+  // During SSR/build, use a placeholder (will be replaced client-side)
+  // This should never actually be used since ConnectionProvider only runs client-side
   if (network === 'devnet') {
     return process.env.HELIUS_DEVNET_RPC || 'https://api.devnet.solana.com';
   }
@@ -94,7 +98,8 @@ export const NETWORK_CONFIGS: Record<NetworkType, NetworkConfig> = {
   'devnet': {
     name: 'devnet',
     displayName: 'Devnet',
-    rpcEndpoint: getClientRpcEndpoint('devnet'),
+    // Note: rpcEndpoint is a placeholder - use getClientRpcEndpoint() at runtime for actual URL
+    rpcEndpoint: 'https://api.devnet.solana.com',
     wsEndpoint: process.env.NEXT_PUBLIC_DEVNET_WS || 'wss://api.devnet.solana.com',
 
     hydentityProgramId: new PublicKey('7uBSpWjqTfoSNc45JRFTAiJ6agfNDZPPM48Scy987LDx'),
@@ -127,7 +132,8 @@ export const NETWORK_CONFIGS: Record<NetworkType, NetworkConfig> = {
   'mainnet-beta': {
     name: 'mainnet-beta',
     displayName: 'Mainnet',
-    rpcEndpoint: getClientRpcEndpoint('mainnet-beta'),
+    // Note: rpcEndpoint is a placeholder - use getClientRpcEndpoint() at runtime for actual URL
+    rpcEndpoint: 'https://api.mainnet-beta.solana.com',
     wsEndpoint: process.env.NEXT_PUBLIC_MAINNET_WS || 'wss://api.mainnet-beta.solana.com',
 
     // Same program ID as devnet (using same keypair for deployment)
@@ -180,9 +186,10 @@ export function detectNetworkFromEndpoint(endpoint: string): NetworkType {
 
 /**
  * Get the appropriate RPC endpoint for a network
+ * @deprecated Use getClientRpcEndpoint() for client-side or getServerRpcEndpoint() for server-side
  */
 export function getRpcEndpoint(network: NetworkType): string {
-  return NETWORK_CONFIGS[network].rpcEndpoint;
+  return getClientRpcEndpoint(network);
 }
 
 /**

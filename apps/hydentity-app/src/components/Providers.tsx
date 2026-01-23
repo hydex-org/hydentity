@@ -10,7 +10,7 @@ import {
 } from '@solana/wallet-adapter-wallets';
 import { TestModeProvider } from '@/contexts/TestModeContext';
 import { NetworkProvider } from '@/contexts/NetworkContext';
-import { NetworkType, NETWORK_CONFIGS } from '@/config/networks';
+import { NetworkType, getClientRpcEndpoint } from '@/config/networks';
 
 // Import wallet adapter CSS
 import '@solana/wallet-adapter-react-ui/styles.css';
@@ -72,10 +72,9 @@ export function Providers({ children }: ProvidersProps) {
   }, [network]);
 
   // Get RPC endpoint based on current network
+  // Uses the proxy endpoint to keep API keys server-side
   const endpoint = useMemo(() => {
-    const config = NETWORK_CONFIGS[network];
-    console.log(`[Providers] Network: ${network}`);
-    return config.rpcEndpoint;
+    return getClientRpcEndpoint(network);
   }, [network]);
 
   // Configure wallets

@@ -576,7 +576,6 @@ export function useHydentity() {
         feePayer: transaction.feePayer?.toBase58(),
         instructions: transaction.instructions.length,
         signers: transaction.signatures.map(s => s.publicKey.toBase58()),
-        connectionEndpoint: connection.rpcEndpoint,
       });
 
       // Send transaction (wallet adapter handles signing)
