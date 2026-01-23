@@ -21,7 +21,7 @@
     "bs58": "^6.0.0",
     "framer-motion": "^11.0.0",
     "next": "^14.2.0",
-    "privacycash": "https://github.com/hydex-org/privacy-cash-sdk/tarball/main",
+    "privacycash": "https://github.com/hydex-org/privacy-cash-sdk/tarball/98eef65",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tweetnacl": "^1.0.3"
