@@ -11,6 +11,12 @@ const nextConfig = {
     ],
   },
 
+  // Include circuit files in serverless function bundles
+  // These are loaded at runtime by privacycash SDK
+  outputFileTracingIncludes: {
+    '/api/privacy-cash/*': ['./node_modules/privacycash/circuit2/**/*'],
+  },
+
   webpack: (config, { isServer }) => {
     // Handle node modules that don't work in browser
     config.resolve.fallback = {
