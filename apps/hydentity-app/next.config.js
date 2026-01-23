@@ -1,5 +1,3 @@
-const path = require('path');
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -8,6 +6,7 @@ const nextConfig = {
     instrumentationHook: true,
     // Exclude packages with native/WASM dependencies from bundling
     serverComponentsExternalPackages: [
+      'privacycash',
       '@lightprotocol/hasher.rs',
     ],
   },
@@ -21,17 +20,6 @@ const nextConfig = {
       tls: false,
       crypto: false,
     };
-
-    // On Vercel (server-side), replace node-localstorage with our in-memory mock
-    // This prevents the privacycash SDK from trying to write to the read-only filesystem
-    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
-    if (isServer && isVercel) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'node-localstorage': path.resolve(__dirname, 'src/lib/memory-localstorage.js'),
-      };
-      console.log('[next.config.js] Aliased node-localstorage to memory mock for Vercel');
-    }
 
     // Enable WASM support
     config.experiments = {

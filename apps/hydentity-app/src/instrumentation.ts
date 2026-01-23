@@ -1,17 +1,16 @@
 /**
  * Next.js Instrumentation
  *
- * This file runs before server code. On Vercel, the node-localstorage
- * module is replaced with an in-memory mock via webpack alias in next.config.js.
- *
- * This instrumentation hook is kept for potential future use.
+ * This file runs before server code.
+ * The privacycash SDK now handles serverless environments natively via
+ * the PRIVACYCASH_CACHE_DIR environment variable.
  */
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
-    if (isVercel) {
-      console.log('[instrumentation] Running on Vercel - node-localstorage aliased to memory mock via webpack');
+    const cacheDir = process.env.PRIVACYCASH_CACHE_DIR;
+    if (cacheDir) {
+      console.log(`[instrumentation] PrivacyCash cache mode: ${cacheDir}`);
     }
   }
 }
