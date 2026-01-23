@@ -18,7 +18,7 @@ hydentity = "7uBSpWjqTfoSNc45JRFTAiJ6agfNDZPPM48Scy987LDx"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "https://devnet.helius-rpc.com/?api-key=b6fbdeee-e72d-49b9-92bc-d607d85be5bf"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

@@ -65,7 +65,7 @@ async function computeAccountDiscriminator(accountName: string): Promise<Buffer>
  * NameVault account layout:
  * - 8 bytes: discriminator
  * - 32 bytes: owner
- * - 32 bytes: sns_name  
+ * - 32 bytes: sns_name
  * - 8 bytes: total_sol_received
  * - 8 bytes: deposit_count
  * - 8 bytes: created_at
@@ -92,32 +92,32 @@ function parseNameVault(data: Buffer): {
   if (data.length < NAME_VAULT_SIZE) {
     return null;
   }
-  
+
   let offset = 8; // Skip discriminator
-  
+
   const owner = new PublicKey(data.slice(offset, offset + 32));
   offset += 32;
-  
+
   const snsName = new PublicKey(data.slice(offset, offset + 32));
   offset += 32;
-  
+
   const totalSolReceived = data.readBigUInt64LE(offset);
   offset += 8;
-  
+
   const depositCount = data.readBigUInt64LE(offset);
   offset += 8;
-  
+
   const createdAt = data.readBigInt64LE(offset);
   offset += 8;
-  
+
   const lastDepositAt = data.readBigInt64LE(offset);
   offset += 8;
-  
+
   const bump = data.readUInt8(offset);
   offset += 1;
-  
+
   const domainTransferred = data.readUInt8(offset) === 1;
-  
+
   return {
     owner,
     snsName,
@@ -269,8 +269,6 @@ export function useHydentity() {
 
     try {
       console.log(`Fetching vaults for wallet on ${network}:`, publicKey.toBase58());
-      console.log(`RPC Endpoint: ${connection.rpcEndpoint}`);
-
       // Compute the NameVault account discriminator
       const vaultDiscriminator = await computeAccountDiscriminator('NameVault');
       console.log('NameVault discriminator:', Array.from(vaultDiscriminator));
@@ -292,9 +290,9 @@ export function useHydentity() {
           },
         ],
       });
-      
+
       console.log(`Found ${accounts.length} vault account(s)`);
-      
+
       const vaults: VaultInfo[] = [];
 
       // Load cached domain names from localStorage
@@ -432,12 +430,12 @@ export function useHydentity() {
       } catch (e) {
         console.warn('Failed to save domain cache:', e);
       }
-      
+
       // Sort by creation time (newest first)
       vaults.sort((a, b) => b.createdAt - a.createdAt);
-      
+
       console.log(`Successfully loaded ${vaults.length} vault(s)`);
-      
+
       setState({
         vaults,
         isLoading: false,
@@ -471,7 +469,7 @@ export function useHydentity() {
 
   /**
    * Initialize a new vault for a domain
-   * 
+   *
    * In test mode: Creates a vault with a mock SNS account (program verifies ownership)
    * In production: Creates a vault with real SNS account (program verifies ownership)
    */
@@ -481,10 +479,10 @@ export function useHydentity() {
     }
 
     const cleanDomain = domain.toLowerCase().replace(/\.sol$/, '');
-    
+
     try {
       let snsNameAccount: PublicKey;
-      
+
       if (testMode) {
         // In test mode, create a deterministic fake SNS account from domain name
         // Note: This will fail on-chain SNS verification unless the program is also in test mode
@@ -497,13 +495,13 @@ export function useHydentity() {
       } else {
         // Use real SNS name account via SNS adapter (handles devnet/mainnet automatically)
         snsNameAccount = snsAdapter.getDomainKey(cleanDomain);
-        
+
         // Verify the SNS account exists and check its owner
         const accountInfo = await connection.getAccountInfo(snsNameAccount);
         if (!accountInfo) {
           throw new Error(`SNS domain "${cleanDomain}.sol" not found on-chain`);
         }
-        
+
         // Log the account owner for debugging
         console.log('SNS Account Info:', {
           address: snsNameAccount.toBase58(),
@@ -512,7 +510,7 @@ export function useHydentity() {
           ownerMatches: accountInfo.owner.equals(SNS_NAME_PROGRAM_ID),
           dataLength: accountInfo.data.length,
         });
-        
+
         // Check if the account is owned by SNS Name Program
         if (!accountInfo.owner.equals(SNS_NAME_PROGRAM_ID)) {
           throw new Error(
@@ -548,7 +546,7 @@ export function useHydentity() {
 
       // Create and configure transaction
       const transaction = new Transaction().add(instruction);
-      
+
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
       transaction.lastValidBlockHeight = lastValidBlockHeight;
@@ -612,7 +610,7 @@ export function useHydentity() {
         }
         throw sendError;
       }
-      
+
       // Wait for confirmation
       const confirmation = await connection.confirmTransaction({
         signature,
@@ -837,7 +835,7 @@ export function useHydentity() {
    * SPL Name Service Transfer instruction format:
    * - Instruction data: [2 (tag), ...new_owner_pubkey (32 bytes)]
    * - Accounts: [name_account (writable), current_owner (signer)]
-   * 
+   *
    * NOTE: The new owner is passed in instruction data, NOT as an account
    */
   const buildSnsTransferInstruction = useCallback((
@@ -849,7 +847,7 @@ export function useHydentity() {
     const data = Buffer.alloc(1 + 32);
     data.writeUInt8(2, 0); // Transfer instruction tag
     newOwner.toBuffer().copy(data, 1); // New owner pubkey
-    
+
     return new TransactionInstruction({
       programId: SNS_NAME_PROGRAM_ID,
       keys: [
@@ -862,7 +860,7 @@ export function useHydentity() {
 
   /**
    * Transfer SNS domain ownership to the vault authority
-   * 
+   *
    * This is a two-step process:
    * 1. Transfer domain using SNS instruction (user signs)
    * 2. Call markDomainTransferred to verify and update vault state
@@ -880,7 +878,7 @@ export function useHydentity() {
 
       // Get vault authority PDA (the new owner)
       const [vaultAuthority] = getVaultAuthorityPda(snsNameAccount, programId);
-      
+
       console.log('Transferring domain ownership to vault:', {
         domain: cleanDomain,
         snsNameAccount: snsNameAccount.toBase58(),
@@ -903,7 +901,7 @@ export function useHydentity() {
 
       // Create transaction with the transfer instruction
       const transaction = new Transaction().add(transferIx);
-      
+
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
       transaction.lastValidBlockHeight = lastValidBlockHeight;
@@ -922,7 +920,7 @@ export function useHydentity() {
       // Send the transfer transaction
       console.log('Sending domain transfer transaction...');
       const transferSig = await sendTransaction(transaction, connection);
-      
+
       // Wait for confirmation
       await connection.confirmTransaction({
         signature: transferSig,
@@ -1019,7 +1017,7 @@ export function useHydentity() {
 
   /**
    * Reclaim domain ownership from the vault
-   * 
+   *
    * Transfers SNS domain ownership from the vault authority PDA back to
    * a specified destination address.
    */
@@ -1066,7 +1064,7 @@ export function useHydentity() {
       });
 
       const transaction = new Transaction().add(instruction);
-      
+
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
       transaction.lastValidBlockHeight = lastValidBlockHeight;
@@ -1082,7 +1080,7 @@ export function useHydentity() {
       }
 
       const signature = await sendTransaction(transaction, connection);
-      
+
       await connection.confirmTransaction({
         signature,
         blockhash,

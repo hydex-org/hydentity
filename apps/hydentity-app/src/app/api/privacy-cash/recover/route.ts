@@ -17,9 +17,10 @@ import {
   Transaction,
   sendAndConfirmTransaction,
 } from '@solana/web3.js';
+import { getServerRpcEndpoint } from '@/config/server-rpc';
 
-// Mainnet RPC
-const RPC_URL = process.env.NEXT_PUBLIC_MAINNET_RPC || 'https://api.mainnet-beta.solana.com';
+// Get server-side RPC (uses HELIUS_* env vars, not exposed to client)
+const RPC_URL = getServerRpcEndpoint('mainnet-beta');
 
 export async function POST(request: NextRequest) {
   try {

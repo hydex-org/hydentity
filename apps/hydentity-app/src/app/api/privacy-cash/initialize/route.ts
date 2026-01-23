@@ -7,12 +7,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeClient } from '../service';
+import { getPrivacyCashServerConfig } from '@/config/server-rpc';
 
-// Mainnet Privacy Cash config
-const PRIVACY_CASH_CONFIG = {
-  rpcUrl: process.env.NEXT_PUBLIC_MAINNET_RPC || 'https://api.mainnet-beta.solana.com',
-  relayerUrl: 'https://api3.privacycash.org',
-};
+// Get server-side config (uses HELIUS_* env vars, not exposed to client)
+const PRIVACY_CASH_CONFIG = getPrivacyCashServerConfig('mainnet-beta');
 
 export async function POST(request: NextRequest) {
   try {

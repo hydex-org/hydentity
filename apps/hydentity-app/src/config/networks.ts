@@ -7,12 +7,31 @@
  * This is the single source of truth for devnet vs mainnet differences.
  *
  * To add a new network or modify settings, update NETWORK_CONFIGS below.
+ *
+ * NOTE: Client-side RPC calls go through /api/rpc/[network] proxy to keep
+ * API keys server-side. See src/app/api/rpc/[network]/route.ts
  * =============================================================================
  */
 
 import { PublicKey } from '@solana/web3.js';
 
 export type NetworkType = 'devnet' | 'mainnet-beta';
+
+/**
+ * Get the RPC endpoint for client-side use.
+ * Uses the proxy endpoint to keep API keys server-side.
+ */
+function getClientRpcEndpoint(network: NetworkType): string {
+  // In browser, use the proxy endpoint
+  if (typeof window !== 'undefined') {
+    return `/api/rpc/${network}`;
+  }
+  // During SSR/build, use env vars (these won't be exposed to client bundle)
+  if (network === 'devnet') {
+    return process.env.HELIUS_DEVNET_RPC || 'https://api.devnet.solana.com';
+  }
+  return process.env.HELIUS_MAINNET_RPC || 'https://api.mainnet-beta.solana.com';
+}
 
 export interface PrivacyCashConfig {
   programId: PublicKey;
@@ -75,7 +94,7 @@ export const NETWORK_CONFIGS: Record<NetworkType, NetworkConfig> = {
   'devnet': {
     name: 'devnet',
     displayName: 'Devnet',
-    rpcEndpoint: process.env.NEXT_PUBLIC_DEVNET_RPC || 'https://api.devnet.solana.com',
+    rpcEndpoint: getClientRpcEndpoint('devnet'),
     wsEndpoint: process.env.NEXT_PUBLIC_DEVNET_WS || 'wss://api.devnet.solana.com',
 
     hydentityProgramId: new PublicKey('7uBSpWjqTfoSNc45JRFTAiJ6agfNDZPPM48Scy987LDx'),
@@ -108,7 +127,7 @@ export const NETWORK_CONFIGS: Record<NetworkType, NetworkConfig> = {
   'mainnet-beta': {
     name: 'mainnet-beta',
     displayName: 'Mainnet',
-    rpcEndpoint: process.env.NEXT_PUBLIC_MAINNET_RPC || 'https://api.mainnet-beta.solana.com',
+    rpcEndpoint: getClientRpcEndpoint('mainnet-beta'),
     wsEndpoint: process.env.NEXT_PUBLIC_MAINNET_WS || 'wss://api.mainnet-beta.solana.com',
 
     // Same program ID as devnet (using same keypair for deployment)

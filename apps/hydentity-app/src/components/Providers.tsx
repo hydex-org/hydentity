@@ -74,7 +74,7 @@ export function Providers({ children }: ProvidersProps) {
   // Get RPC endpoint based on current network
   const endpoint = useMemo(() => {
     const config = NETWORK_CONFIGS[network];
-    console.log(`[Providers] Network: ${network}, RPC Endpoint: ${config.rpcEndpoint}`);
+    console.log(`[Providers] Network: ${network}`);
     return config.rpcEndpoint;
   }, [network]);
 
@@ -111,4 +111,3 @@ export function Providers({ children }: ProvidersProps) {
     </ConnectionProvider>
   );
 }
-
