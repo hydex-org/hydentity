@@ -14,7 +14,7 @@ Before creating a Hydentity vault, you need:
 
 ### Step 1: Connect Your Wallet
 
-1. Visit [hydentity.xyz](https://hydentity.xyz)
+1. Visit [hydentity-hydentity-app.vercel.app](https://hydentity-hydentity-app.vercel.app/)
 2. Click "Connect Wallet"
 3. Select your wallet provider
 4. Approve the connection

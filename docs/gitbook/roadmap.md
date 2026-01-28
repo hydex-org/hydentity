@@ -24,7 +24,7 @@
 
 - [x] **Deployment**
   - Mainnet deployment (same program ID as Devnet)
-  - Production frontend at hydentity.xyz
+  - Production frontend at [hydentity-hydentity-app.vercel.app](https://hydentity-hydentity-app.vercel.app/)
 
 ---
 

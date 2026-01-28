@@ -43,7 +43,7 @@ Hydentity creates a **privacy vault** between your public domain and your privat
 
 ## Quick Links
 
-- **Live App**: [hydentity.xyz](https://hydentity.xyz)
+- **Live App**: [hydentity-hydentity-app.vercel.app](https://hydentity-hydentity-app.vercel.app/)
 - **Program ID**: `7uBSpWjqTfoSNc45JRFTAiJ6agfNDZPPM48Scy987LDx`
 - **Networks**: Devnet & Mainnet
 
