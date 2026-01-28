@@ -126,9 +126,6 @@ apps/hydentity-app/cache/
 # Project Specific
 # ========================
 
-# Documentation (temporary exclusion)
-docs/
-
 # External/reference SDKs
 privacy sdks/
 
@@ -149,3 +146,4 @@ privacy sdks/
 # pnpm-lock.yaml
 # package-lock.json
 # yarn.lock
+
