@@ -26,6 +26,7 @@ Hydentity creates a **privacy vault** between your public domain and your privat
 2. **Receive Privately** - Payments to `yourdomain.sol` go to your vault, not your personal wallet
 3. **Withdraw Anonymously** - Route funds through Privacy Cash's ZK mixer to break the transaction trail
 4. **Stay in Control** - Full access to your funds at all times with emergency direct withdrawal
+5. **Transfer Domain Ownership** *(Optional)* - Transfer your domain's ownership to the vault itself. Anyone looking up the owner of your `.sol` domain will see the vault address instead of your personal wallet, adding another layer of privacy
 
 ---
 
