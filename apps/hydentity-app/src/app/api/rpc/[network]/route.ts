@@ -25,6 +25,8 @@ const ALLOWED_METHODS = new Set([
   'getProgramAccounts',
   'getTokenAccountBalance',
   'getTokenAccountsByOwner',
+  'getTokenLargestAccounts',
+  'getTokenSupply',
 
   // Transaction methods
   'getTransaction',
