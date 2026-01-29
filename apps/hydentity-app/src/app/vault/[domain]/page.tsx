@@ -650,7 +650,8 @@ function VaultDetailContent() {
           
           <div className="bg-hx-card-bg rounded-xl p-6 border border-hx-text/10">
             <dl className="space-y-4">
-              <InfoRow label="Vault Address" value={vault.vaultAddress} mono />
+              <InfoRow label="Vault Address" value={vault.vaultAuthorityAddress} mono />
+              <InfoRow label="Vault Account" value={vault.vaultAddress} mono />
               <InfoRow label="Owner Address" value={vault.ownerAddress} mono />
               <InfoRow label="SNS Name Account" value={vault.snsNameAccount} mono />
               <InfoRow label="Policy Status" value={vault.policyEnabled ? 'Active' : 'Paused'} />
@@ -941,8 +942,7 @@ function VaultDetailContent() {
             {usePrivacyRouting ? (
               <div className="p-3 bg-hx-purple/10 rounded-lg border border-hx-purple/20 mb-6">
                 <p className="text-xs text-hx-purple">
-                  <strong>Privacy Flow:</strong> Funds will be withdrawn to your wallet, then deposited to Privacy Cash.
-                  You can later withdraw from Privacy Cash to any address, breaking the on-chain link.
+                  <strong>Privacy Flow:</strong> First top-up your private balance, then you can withdraw to your fresh wallet, breaking the on-chain link.
                 </p>
               </div>
             ) : (
@@ -986,10 +986,10 @@ function VaultDetailContent() {
               >
                 {isWithdrawing
                   ? usePrivacyRouting
-                    ? 'Routing...'
+                    ? 'Topping up...'
                     : 'Withdrawing...'
                   : usePrivacyRouting
-                    ? 'Withdraw via Privacy Cash'
+                    ? 'Top up Private Balance'
                     : 'Withdraw'}
               </button>
             </div>
