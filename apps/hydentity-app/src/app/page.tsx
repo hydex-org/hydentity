@@ -17,7 +17,8 @@ function AnimatedHero({ connected }: { connected: boolean }) {
   // Phases: 0=initial, 1=first msg, 2=second msg, 3=show STOP overlay, 4=fade out chat, 5=show final
 
   useEffect(() => {
-    const timings = [800, 1800, 2000, 1800, 800];
+    // Timings: initial delay, after 1st msg, after 2nd msg, after STOP overlay, before final CTA
+    const timings = [800, 3000, 3000, 3000, 800];
     if (phase < 5) {
       const timer = setTimeout(() => setPhase(p => p + 1), timings[phase]);
       return () => clearTimeout(timer);
