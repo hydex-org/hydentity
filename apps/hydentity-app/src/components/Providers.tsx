@@ -10,7 +10,7 @@ import {
 } from '@solana/wallet-adapter-wallets';
 import { TestModeProvider } from '@/contexts/TestModeContext';
 import { NetworkProvider } from '@/contexts/NetworkContext';
-import { NetworkType, getClientRpcEndpoint } from '@/config/networks';
+import { NetworkType, getClientRpcEndpoint, NETWORK_CONFIGS } from '@/config/networks';
 
 // Import wallet adapter CSS
 import '@solana/wallet-adapter-react-ui/styles.css';
@@ -77,6 +77,11 @@ export function Providers({ children }: ProvidersProps) {
     return getClientRpcEndpoint(network);
   }, [network]);
 
+  // Get WebSocket endpoint directly (not through proxy - Vercel doesn't support WS)
+  const wsEndpoint = useMemo(() => {
+    return NETWORK_CONFIGS[network].wsEndpoint;
+  }, [network]);
+
   // Configure wallets
   const wallets = useMemo(
     () => [
@@ -97,7 +102,7 @@ export function Providers({ children }: ProvidersProps) {
   }
 
   return (
-    <ConnectionProvider endpoint={endpoint} config={{ commitment: 'confirmed' }}>
+    <ConnectionProvider endpoint={endpoint} config={{ commitment: 'confirmed', wsEndpoint }}>
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>
           <NetworkProvider>
