@@ -1,15 +1,153 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { VaultCard } from '@/components/VaultCard';
 import { ClientOnly } from '@/components/ClientOnly';
 import { useHydentity } from '@/hooks/useHydentity';
 import { usePrivacyCash } from '@/hooks/usePrivacyCash';
+
+// Animated Hero Component
+function AnimatedHero({ connected }: { connected: boolean }) {
+  const [phase, setPhase] = useState(0);
+  // Phases: 0=initial, 1=first msg, 2=second msg, 3=fade out chat, 4=show banner, 5=show final
+
+  useEffect(() => {
+    const timings = [800, 1800, 2500, 1000, 1500];
+    if (phase < 5) {
+      const timer = setTimeout(() => setPhase(p => p + 1), timings[phase]);
+      return () => clearTimeout(timer);
+    }
+  }, [phase]);
+
+  return (
+    <div className="text-center mb-16 min-h-[280px] flex flex-col items-center justify-center">
+      <AnimatePresence mode="wait">
+        {phase < 4 ? (
+          // Messaging App Phase
+          <motion.div
+            key="chat"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: -20 }}
+            transition={{ duration: 0.4 }}
+            className="w-full max-w-md mx-auto"
+          >
+            {/* Chat Window */}
+            <div className="bg-[#1a1a24] rounded-2xl border border-hx-text/20 overflow-hidden shadow-2xl">
+              {/* Chat Header */}
+              <div className="bg-[#12121a] px-4 py-3 flex items-center gap-3 border-b border-hx-text/10">
+                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+                <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+                <span className="ml-2 text-xs text-hx-text/60">Messages</span>
+              </div>
+
+              {/* Chat Messages */}
+              <div className="p-4 space-y-3 min-h-[140px]">
+                {/* First Message - Received */}
+                <AnimatePresence>
+                  {phase >= 1 && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="flex justify-start"
+                    >
+                      <div className="bg-hx-text/10 rounded-2xl rounded-bl-md px-4 py-2 max-w-[80%]">
+                        <p className="text-sm text-hx-white">Yo, send me your .sol</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Second Message - Sent */}
+                <AnimatePresence>
+                  {phase >= 2 && (
+                    <motion.div
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="flex justify-end"
+                    >
+                      <div className="bg-hx-purple/80 rounded-2xl rounded-br-md px-4 py-2 max-w-[80%]">
+                        <p className="text-sm text-white">NP, it&apos;s my-entire-financial-history.sol</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          // Banner Phase
+          <motion.div
+            key="banner"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, type: "spring", bounce: 0.3 }}
+            className="w-full"
+          >
+            {/* STOP Banner */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0, duration: 0.4 }}
+              className="mb-6"
+            >
+              <span className="inline-block px-6 py-2 bg-red-500/20 border border-red-500/40 rounded-full text-red-400 font-bold text-lg tracking-wide">
+                STOP doing this
+              </span>
+            </motion.div>
+
+            {/* Main Message */}
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+              className="text-3xl md:text-5xl font-bold mb-4 text-hx-white"
+            >
+              Keep your finances private.
+            </motion.h1>
+
+            {/* Final CTA */}
+            <AnimatePresence>
+              {phase >= 5 && (
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="text-xl md:text-2xl text-hx-text mb-8"
+                >
+                  <span className="text-hx-green font-mono">&lt;encrypt&gt;</span>
+                  <span className="text-hx-white"> your .sol domain with </span>
+                  <span className="text-gradient font-semibold">Hydentity</span>
+                </motion.p>
+              )}
+            </AnimatePresence>
+
+            {/* Wallet Button */}
+            <ClientOnly>
+              {!connected && phase >= 5 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.2, duration: 0.3 }}
+                >
+                  <WalletMultiButton />
+                </motion.div>
+              )}
+            </ClientOnly>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 export default function Home() {
   const { connected } = useWallet();
@@ -44,35 +182,8 @@ export default function Home() {
       <Header />
       
       <div className="container mx-auto px-4 py-12">
-        {/* Hero Section */}
-        <motion.section 
-          className="text-center mb-16"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <h1 className="text-4xl md:text-6xl font-bold mb-6 text-hx-white">
-            Private Receiving
-            <br />
-            <span className="text-gradient">for Your .sol Domain</span>
-          </h1>
-          <p className="text-lg text-hx-text max-w-xl mx-auto mb-8">
-            Accept SOL and tokens through your SNS domain while keeping your 
-            primary wallet private. Powered by Arcium.
-          </p>
-          
-          <ClientOnly>
-            {!connected && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2, duration: 0.3 }}
-              >
-                <WalletMultiButton />
-              </motion.div>
-            )}
-          </ClientOnly>
-        </motion.section>
+        {/* Hero Section - Animated */}
+        <AnimatedHero connected={connected} />
 
         {/* Connected State */}
         <ClientOnly>
