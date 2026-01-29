@@ -14,10 +14,10 @@ import { usePrivacyCash } from '@/hooks/usePrivacyCash';
 // Animated Hero Component
 function AnimatedHero({ connected }: { connected: boolean }) {
   const [phase, setPhase] = useState(0);
-  // Phases: 0=initial, 1=first msg, 2=second msg, 3=fade out chat, 4=show banner, 5=show final
+  // Phases: 0=initial, 1=first msg, 2=second msg, 3=show STOP overlay, 4=fade out chat, 5=show final
 
   useEffect(() => {
-    const timings = [800, 1800, 2500, 1000, 1500];
+    const timings = [800, 1800, 2000, 1800, 800];
     if (phase < 5) {
       const timer = setTimeout(() => setPhase(p => p + 1), timings[phase]);
       return () => clearTimeout(timer);
@@ -25,30 +25,30 @@ function AnimatedHero({ connected }: { connected: boolean }) {
   }, [phase]);
 
   return (
-    <div className="text-center mb-16 min-h-[280px] flex flex-col items-center justify-center">
+    <div className="text-center mb-16 min-h-[320px] flex flex-col items-center justify-center">
       <AnimatePresence mode="wait">
         {phase < 4 ? (
-          // Messaging App Phase
+          // Messaging App Phase with STOP overlay
           <motion.div
             key="chat"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: -20 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
             transition={{ duration: 0.4 }}
-            className="w-full max-w-md mx-auto"
+            className="w-full max-w-lg mx-auto relative"
           >
             {/* Chat Window */}
             <div className="bg-[#1a1a24] rounded-2xl border border-hx-text/20 overflow-hidden shadow-2xl">
               {/* Chat Header */}
-              <div className="bg-[#12121a] px-4 py-3 flex items-center gap-3 border-b border-hx-text/10">
-                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
-                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
-                <span className="ml-2 text-xs text-hx-text/60">Messages</span>
+              <div className="bg-[#12121a] px-5 py-4 flex items-center gap-3 border-b border-hx-text/10">
+                <div className="w-3.5 h-3.5 rounded-full bg-red-500/80"></div>
+                <div className="w-3.5 h-3.5 rounded-full bg-yellow-500/80"></div>
+                <div className="w-3.5 h-3.5 rounded-full bg-green-500/80"></div>
+                <span className="ml-2 text-sm text-hx-text/60">Messages</span>
               </div>
 
               {/* Chat Messages */}
-              <div className="p-4 space-y-3 min-h-[140px]">
+              <div className="p-6 space-y-4 min-h-[180px]">
                 {/* First Message - Received */}
                 <AnimatePresence>
                   {phase >= 1 && (
@@ -58,8 +58,8 @@ function AnimatedHero({ connected }: { connected: boolean }) {
                       transition={{ duration: 0.3 }}
                       className="flex justify-start"
                     >
-                      <div className="bg-hx-text/10 rounded-2xl rounded-bl-md px-4 py-2 max-w-[80%]">
-                        <p className="text-sm text-hx-white">Yo, send me your .sol</p>
+                      <div className="bg-hx-text/10 rounded-2xl rounded-bl-md px-5 py-3 max-w-[85%]">
+                        <p className="text-base text-hx-white">Yo, send me your .sol</p>
                       </div>
                     </motion.div>
                   )}
@@ -74,42 +74,52 @@ function AnimatedHero({ connected }: { connected: boolean }) {
                       transition={{ duration: 0.3 }}
                       className="flex justify-end"
                     >
-                      <div className="bg-hx-purple/80 rounded-2xl rounded-br-md px-4 py-2 max-w-[80%]">
-                        <p className="text-sm text-white">NP, it&apos;s my-entire-financial-history.sol</p>
+                      <div className="bg-hx-purple/80 rounded-2xl rounded-br-md px-5 py-3 max-w-[85%]">
+                        <p className="text-base text-white">
+                          NP, it&apos;s <span className="text-blue-400 underline underline-offset-2 cursor-pointer hover:text-blue-300">my-entire-financial-history.sol</span>
+                        </p>
                       </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
             </div>
+
+            {/* STOP Overlay - appears over the chat */}
+            <AnimatePresence>
+              {phase >= 3 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.1 }}
+                  transition={{ duration: 0.4, type: "spring", bounce: 0.4 }}
+                  className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-2xl"
+                >
+                  <div className="text-center">
+                    <span className="inline-block px-8 py-3 bg-red-500/30 border-2 border-red-500/60 rounded-full text-red-400 font-bold text-xl md:text-2xl tracking-wide shadow-lg">
+                      STOP doing this
+                    </span>
+                    <p className="mt-3 text-hx-text text-sm">Keep your finances private.</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         ) : (
-          // Banner Phase
+          // Final Phase - Clean message without STOP banner
           <motion.div
-            key="banner"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, type: "spring", bounce: 0.3 }}
+            key="final"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
             className="w-full"
           >
-            {/* STOP Banner */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0, duration: 0.4 }}
-              className="mb-6"
-            >
-              <span className="inline-block px-6 py-2 bg-red-500/20 border border-red-500/40 rounded-full text-red-400 font-bold text-lg tracking-wide">
-                STOP doing this
-              </span>
-            </motion.div>
-
             {/* Main Message */}
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.4 }}
-              className="text-3xl md:text-5xl font-bold mb-4 text-hx-white"
+              transition={{ delay: 0, duration: 0.4 }}
+              className="text-3xl md:text-5xl font-bold mb-6 text-hx-white"
             >
               Keep your finances private.
             </motion.h1>
