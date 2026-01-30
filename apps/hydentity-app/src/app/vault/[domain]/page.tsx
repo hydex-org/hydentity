@@ -36,6 +36,9 @@ function VaultDetailContent() {
     registerDomainForVault,
     fetchVaults,
     syncDomainTransferState,
+    closeVault,
+    claimVault,
+    lookupVaultByDomain,
   } = useHydentity();
 
   const { config } = useNetwork();
@@ -70,6 +73,16 @@ function VaultDetailContent() {
   const [addressCopied, setAddressCopied] = useState(false);
   const [usePrivacyRouting, setUsePrivacyRouting] = useState(false);
   const [isSyncingState, setIsSyncingState] = useState(false);
+
+  // Close Vault state
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Claim Vault state (for vault-not-found path)
+  const [isCheckingVault, setIsCheckingVault] = useState(false);
+  const [unclaimedVault, setUnclaimedVault] = useState<VaultInfo | null>(null);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [showClaimConfirmModal, setShowClaimConfirmModal] = useState(false);
 
   // Privacy Cash withdrawal state
   const [showPrivacyCashWithdrawModal, setShowPrivacyCashWithdrawModal] = useState(false);
@@ -152,6 +165,66 @@ function VaultDetailContent() {
       setError(err instanceof Error ? err.message : 'Failed to sync domain state');
     } finally {
       setIsSyncingState(false);
+    }
+  };
+
+  const handleCloseVault = async () => {
+    if (!vault) return;
+
+    setIsClosing(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const sig = await closeVault(vault.domain);
+      setSuccess(`Vault closed successfully! Rent reclaimed. Tx: ${sig.slice(0, 8)}...`);
+      setShowCloseModal(false);
+      router.push('/');
+    } catch (err) {
+      console.error('Close vault failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to close vault');
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
+  const handleCheckForVault = async () => {
+    setIsCheckingVault(true);
+    setError(null);
+
+    try {
+      const found = await lookupVaultByDomain(domain);
+      if (found && publicKey && found.ownerAddress !== publicKey.toBase58()) {
+        setUnclaimedVault(found);
+      } else if (found) {
+        // Vault exists and we own it - fetchVaults should pick it up
+        setUnclaimedVault(null);
+      } else {
+        setUnclaimedVault(null);
+      }
+    } catch (err) {
+      console.error('Vault check failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to check for vault');
+    } finally {
+      setIsCheckingVault(false);
+    }
+  };
+
+  const handleClaimVault = async () => {
+    setIsClaiming(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const sig = await claimVault(domain);
+      setSuccess(`Vault claimed successfully! Tx: ${sig.slice(0, 8)}...`);
+      setShowClaimConfirmModal(false);
+      setUnclaimedVault(null);
+    } catch (err) {
+      console.error('Claim vault failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to claim vault');
+    } finally {
+      setIsClaiming(false);
     }
   };
 
@@ -368,12 +441,108 @@ function VaultDetailContent() {
   if (!vault) {
     return (
       <div className="min-h-screen bg-hx-bg flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md mx-auto px-4">
           <h2 className="text-xl text-hx-white mb-4">Vault not found</h2>
           <p className="text-hx-text mb-6">No vault found for domain &quot;{domain}.sol&quot;</p>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="mb-4 p-3 bg-hx-green/10 border border-hx-green/30 rounded-lg text-hx-green text-sm">
+              {success}
+            </div>
+          )}
+
+          {!unclaimedVault ? (
+            <div className="mb-6">
+              <button
+                onClick={handleCheckForVault}
+                disabled={isCheckingVault}
+                className="px-5 py-2.5 bg-hx-card-bg text-hx-white border border-hx-text/20 rounded-lg font-medium hover:border-hx-green/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCheckingVault ? 'Checking...' : 'Check for existing vault'}
+              </button>
+            </div>
+          ) : (
+            <div className="mb-6 text-left">
+              <div className="bg-hx-card-bg rounded-xl p-5 border border-hx-text/10 mb-4">
+                <h3 className="text-sm font-medium text-hx-white mb-3">Existing vault found</h3>
+                <dl className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <dt className="text-hx-text">Vault</dt>
+                    <dd className="text-hx-white font-mono text-xs">{unclaimedVault.vaultAddress.slice(0, 8)}...{unclaimedVault.vaultAddress.slice(-6)}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-hx-text">Current Owner</dt>
+                    <dd className="text-hx-white font-mono text-xs">{unclaimedVault.ownerAddress.slice(0, 8)}...{unclaimedVault.ownerAddress.slice(-6)}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-hx-text">Balance</dt>
+                    <dd className="text-hx-white">{(Number(unclaimedVault.balance) / 1e9).toFixed(4)} SOL</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <p className="text-xs text-hx-text mb-4">
+                This vault is owned by a different wallet. If you are the current SNS domain owner, you can claim it.
+              </p>
+
+              <button
+                onClick={() => setShowClaimConfirmModal(true)}
+                disabled={isClaiming}
+                className="w-full px-5 py-2.5 bg-hx-green text-hx-bg rounded-lg font-medium hover:bg-hx-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isClaiming ? 'Claiming...' : 'Claim Vault'}
+              </button>
+            </div>
+          )}
+
           <Link href="/" className="text-hx-green hover:underline">
             ← Back to dashboard
           </Link>
+
+          {/* Claim Confirm Modal */}
+          {showClaimConfirmModal && unclaimedVault && (
+            <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-hx-bg rounded-xl p-6 max-w-md w-full border border-hx-text/20 shadow-2xl text-left"
+              >
+                <h3 className="text-xl font-semibold text-hx-white mb-4">
+                  Claim Vault Ownership
+                </h3>
+
+                <p className="text-hx-text text-sm mb-4">
+                  You are about to claim ownership of this vault. The on-chain program will verify that your wallet is the current SNS domain owner.
+                </p>
+
+                <div className="p-3 bg-hx-bg/50 rounded-lg border border-hx-text/10 mb-6">
+                  <p className="text-xs text-hx-text mb-1">Current Owner:</p>
+                  <p className="text-xs text-hx-white font-mono break-all">{unclaimedVault.ownerAddress}</p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowClaimConfirmModal(false)}
+                    className="flex-1 px-4 py-2.5 bg-hx-bg border border-hx-text/20 text-hx-text rounded-lg hover:bg-hx-text/5 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleClaimVault}
+                    disabled={isClaiming}
+                    className="flex-1 px-4 py-2.5 bg-hx-green text-hx-bg rounded-lg font-medium hover:bg-hx-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isClaiming ? 'Claiming...' : 'Confirm Claim'}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -698,7 +867,7 @@ function VaultDetailContent() {
             </motion.div>
             
             <Link href="/settings">
-              <motion.div 
+              <motion.div
                 className="p-5 bg-hx-card-bg rounded-xl border border-hx-text/10 hover:border-hx-green/30 transition-all cursor-pointer"
                 whileHover={{ y: -2 }}
               >
@@ -706,6 +875,15 @@ function VaultDetailContent() {
                 <p className="text-sm text-hx-text">Configure privacy policy and destinations</p>
               </motion.div>
             </Link>
+
+            <motion.div
+              className="p-5 bg-hx-card-bg rounded-xl border border-red-500/20 hover:border-red-500/40 transition-all cursor-pointer"
+              whileHover={{ y: -2 }}
+              onClick={() => setShowCloseModal(true)}
+            >
+              <h3 className="text-lg font-medium text-red-400 mb-2">🗑️ Close Vault</h3>
+              <p className="text-sm text-hx-text">Close all vault PDAs and reclaim rent</p>
+            </motion.div>
           </div>
         </section>
       </div>
@@ -1054,6 +1232,65 @@ function VaultDetailContent() {
                 className="flex-1 px-4 py-2.5 bg-hx-green text-hx-bg rounded-lg font-medium hover:bg-hx-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save Domain
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Close Vault Modal */}
+      {showCloseModal && vault && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-hx-bg rounded-xl p-6 max-w-md w-full border border-red-500/30 shadow-2xl"
+          >
+            <h3 className="text-xl font-semibold text-red-400 mb-4">
+              Close Vault
+            </h3>
+
+            <p className="text-hx-text text-sm mb-4">
+              This will close all vault PDAs (vault, vault authority, and policy) and return the rent-exempt SOL to your wallet.
+            </p>
+
+            {vault.balance > 0n && (
+              <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20 mb-4">
+                <p className="text-xs text-yellow-400">
+                  <strong>Note:</strong> The vault authority still holds {(Number(vault.balance) / 1e9).toFixed(4)} SOL.
+                  This balance will be returned along with rent when the vault is closed.
+                </p>
+              </div>
+            )}
+
+            {vault.domainTransferred && (
+              <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20 mb-4">
+                <p className="text-xs text-red-400">
+                  <strong>Warning:</strong> The domain is still transferred to the vault authority.
+                  Please reclaim your domain before closing the vault.
+                </p>
+              </div>
+            )}
+
+            <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20 mb-6">
+              <p className="text-xs text-red-400">
+                <strong>This action is irreversible.</strong> You will need to create a new vault if you want to use Hydentity for this domain again.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCloseModal(false)}
+                className="flex-1 px-4 py-2.5 bg-hx-bg border border-hx-text/20 text-hx-text rounded-lg hover:bg-hx-text/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCloseVault}
+                disabled={isClosing || vault.domainTransferred}
+                className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isClosing ? 'Closing...' : 'Close Vault'}
               </button>
             </div>
           </motion.div>

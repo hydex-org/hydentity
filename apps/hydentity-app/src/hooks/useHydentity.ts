@@ -1342,6 +1342,162 @@ export function useHydentity() {
     return markDomainTransferredOnChain(snsNameAccount);
   }, [connected, publicKey, testMode, programId, snsAdapter, markDomainTransferredOnChain]);
 
+  /**
+   * Close a vault, reclaiming all PDA rent
+   */
+  const closeVault = useCallback(async (domain: string): Promise<string> => {
+    if (!connected || !publicKey) {
+      throw new Error('Wallet not connected');
+    }
+
+    const cleanDomain = domain.toLowerCase().replace(/\.sol$/, '');
+
+    try {
+      let snsNameAccount: PublicKey;
+      if (testMode) {
+        [snsNameAccount] = PublicKey.findProgramAddressSync(
+          [Buffer.from('test_sns'), Buffer.from(cleanDomain)],
+          programId
+        );
+      } else {
+        snsNameAccount = snsAdapter.getDomainKey(cleanDomain);
+      }
+
+      const [vault] = getVaultPda(snsNameAccount, programId);
+      const [vaultAuthority] = getVaultAuthorityPda(snsNameAccount, programId);
+      const [policy] = getPolicyPda(snsNameAccount, programId);
+
+      const discriminator = await computeDiscriminator('close_vault');
+
+      const keys = [
+        { pubkey: publicKey, isSigner: true, isWritable: true },           // owner
+        { pubkey: snsNameAccount, isSigner: false, isWritable: false },    // sns_name_account
+        { pubkey: vault, isSigner: false, isWritable: true },              // vault
+        { pubkey: vaultAuthority, isSigner: false, isWritable: true },     // vault_authority
+        { pubkey: policy, isSigner: false, isWritable: true },             // policy
+      ];
+
+      const instruction = new TransactionInstruction({
+        keys,
+        programId,
+        data: discriminator,
+      });
+
+      const transaction = new Transaction().add(instruction);
+
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.lastValidBlockHeight = lastValidBlockHeight;
+      transaction.feePayer = publicKey;
+
+      console.log('Simulating close_vault...');
+      const simulation = await connection.simulateTransaction(transaction);
+      if (simulation.value.err) {
+        console.error('Simulation error:', simulation.value.err);
+        console.error('Logs:', simulation.value.logs);
+        throw new Error(`close_vault simulation failed: ${JSON.stringify(simulation.value.err)}`);
+      }
+      console.log('Simulation successful:', simulation.value.logs);
+
+      const signature = await sendTransaction(transaction, connection, {
+        skipPreflight: true,
+        preflightCommitment: 'confirmed',
+      });
+
+      await connection.confirmTransaction({
+        signature,
+        blockhash,
+        lastValidBlockHeight,
+      }, 'confirmed');
+
+      console.log('Vault closed successfully:', signature);
+
+      await fetchVaults();
+
+      return signature;
+    } catch (error) {
+      console.error('Failed to close vault:', error);
+      throw error;
+    }
+  }, [connected, publicKey, sendTransaction, connection, testMode, fetchVaults, programId, snsAdapter]);
+
+  /**
+   * Claim a vault as the new domain owner
+   */
+  const claimVault = useCallback(async (domain: string): Promise<string> => {
+    if (!connected || !publicKey) {
+      throw new Error('Wallet not connected');
+    }
+
+    const cleanDomain = domain.toLowerCase().replace(/\.sol$/, '');
+
+    try {
+      let snsNameAccount: PublicKey;
+      if (testMode) {
+        [snsNameAccount] = PublicKey.findProgramAddressSync(
+          [Buffer.from('test_sns'), Buffer.from(cleanDomain)],
+          programId
+        );
+      } else {
+        snsNameAccount = snsAdapter.getDomainKey(cleanDomain);
+      }
+
+      const [vault] = getVaultPda(snsNameAccount, programId);
+      const [policy] = getPolicyPda(snsNameAccount, programId);
+
+      const discriminator = await computeDiscriminator('claim_vault');
+
+      const keys = [
+        { pubkey: publicKey, isSigner: true, isWritable: true },           // new_owner
+        { pubkey: snsNameAccount, isSigner: false, isWritable: false },    // sns_name_account
+        { pubkey: vault, isSigner: false, isWritable: true },              // vault
+        { pubkey: policy, isSigner: false, isWritable: true },             // policy
+      ];
+
+      const instruction = new TransactionInstruction({
+        keys,
+        programId,
+        data: discriminator,
+      });
+
+      const transaction = new Transaction().add(instruction);
+
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.lastValidBlockHeight = lastValidBlockHeight;
+      transaction.feePayer = publicKey;
+
+      console.log('Simulating claim_vault...');
+      const simulation = await connection.simulateTransaction(transaction);
+      if (simulation.value.err) {
+        console.error('Simulation error:', simulation.value.err);
+        console.error('Logs:', simulation.value.logs);
+        throw new Error(`claim_vault simulation failed: ${JSON.stringify(simulation.value.err)}`);
+      }
+      console.log('Simulation successful:', simulation.value.logs);
+
+      const signature = await sendTransaction(transaction, connection, {
+        skipPreflight: true,
+        preflightCommitment: 'confirmed',
+      });
+
+      await connection.confirmTransaction({
+        signature,
+        blockhash,
+        lastValidBlockHeight,
+      }, 'confirmed');
+
+      console.log('Vault claimed successfully:', signature);
+
+      await fetchVaults();
+
+      return signature;
+    } catch (error) {
+      console.error('Failed to claim vault:', error);
+      throw error;
+    }
+  }, [connected, publicKey, sendTransaction, connection, testMode, fetchVaults, programId, snsAdapter]);
+
   return {
     // State
     vaults: state.vaults,
@@ -1361,6 +1517,10 @@ export function useHydentity() {
     transferDomainToVault,
     reclaimDomain,
     syncDomainTransferState,
+
+    // Vault lifecycle
+    closeVault,
+    claimVault,
 
     // Domain cache helpers
     registerDomainForVault,
