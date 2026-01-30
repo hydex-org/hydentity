@@ -12,10 +12,13 @@ interface VaultCardProps {
 }
 
 export function VaultCard({ vault, privateCashBalance }: VaultCardProps) {
-  const { registerDomainForVault } = useHydentity();
+  const { registerDomainForVault, closeVault, fetchVaults } = useHydentity();
   const [showDomainInput, setShowDomainInput] = useState(false);
   const [domainInput, setDomainInput] = useState('');
   const [copied, setCopied] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const [closeError, setCloseError] = useState<string | null>(null);
 
   const formatSol = (lamports: bigint) => {
     return (Number(lamports) / 1e9).toFixed(4);
@@ -49,6 +52,22 @@ export function VaultCard({ vault, privateCashBalance }: VaultCardProps) {
       registerDomainForVault(vault.snsNameAccount, domainInput.trim());
       setShowDomainInput(false);
       setDomainInput('');
+    }
+  };
+
+  const handleCloseVault = async () => {
+    setIsClosing(true);
+    setCloseError(null);
+
+    try {
+      await closeVault(vault.domain);
+      setShowCloseModal(false);
+      await fetchVaults();
+    } catch (err) {
+      console.error('Close vault failed:', err);
+      setCloseError(err instanceof Error ? err.message : 'Failed to close vault');
+    } finally {
+      setIsClosing(false);
     }
   };
 
@@ -158,6 +177,101 @@ export function VaultCard({ vault, privateCashBalance }: VaultCardProps) {
           <Stat label="Max Delay" value={`${vault.maxDelaySeconds / 60}m`} />
         </div>
       </Link>
+
+      {/* Close Vault button */}
+      <div className="mt-4 pt-4 border-t border-hx-text/10 flex justify-end">
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowCloseModal(true);
+          }}
+          className="px-3 py-1.5 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded hover:bg-red-500/20 transition-colors"
+        >
+          Close Vault
+        </button>
+      </div>
+
+      {/* Close Vault Modal */}
+      {showCloseModal && (
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-hx-bg rounded-xl p-6 max-w-md w-full border border-red-500/30 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-semibold text-red-400 mb-4">
+              Close Vault
+            </h3>
+
+            <p className="text-hx-text text-sm mb-4">
+              This will close all vault PDAs (vault, vault authority, and policy) and return the rent-exempt SOL to your wallet.
+            </p>
+
+            {vault.balance > 0n && (
+              <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20 mb-4">
+                <p className="text-xs text-yellow-400">
+                  <strong>Note:</strong> The vault authority still holds {(Number(vault.balance) / 1e9).toFixed(4)} SOL.
+                  This balance will be returned along with rent when the vault is closed.
+                </p>
+              </div>
+            )}
+
+            {vault.domainTransferred && (
+              <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20 mb-4">
+                <p className="text-xs text-red-400">
+                  <strong>Warning:</strong> The domain is still transferred to the vault authority.
+                  Please reclaim your domain before closing the vault.
+                </p>
+              </div>
+            )}
+
+            <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20 mb-6">
+              <p className="text-xs text-red-400">
+                <strong>This action is irreversible.</strong> You will need to create a new vault if you want to use Hydentity for this domain again.
+              </p>
+            </div>
+
+            {closeError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                {closeError}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowCloseModal(false);
+                  setCloseError(null);
+                }}
+                className="flex-1 px-4 py-2.5 bg-hx-bg border border-hx-text/20 text-hx-text rounded-lg hover:bg-hx-text/5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCloseVault();
+                }}
+                disabled={isClosing || vault.domainTransferred}
+                className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isClosing ? 'Closing...' : 'Close Vault'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Fallback domain warning and fix UI */}
       {isFallbackDomain && (
