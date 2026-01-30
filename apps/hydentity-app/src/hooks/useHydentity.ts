@@ -511,6 +511,7 @@ export function useHydentity() {
 
     try {
       let snsNameAccount: PublicKey;
+      let snsDataLength = 0;
 
       if (testMode) {
         // In test mode, create a deterministic fake SNS account from domain name
@@ -531,13 +532,15 @@ export function useHydentity() {
           throw new Error(`SNS domain "${cleanDomain}.sol" not found on-chain`);
         }
 
+        snsDataLength = accountInfo.data.length;
+
         // Log the account owner for debugging
         console.log('SNS Account Info:', {
           address: snsNameAccount.toBase58(),
           owner: accountInfo.owner.toBase58(),
           expectedOwner: SNS_NAME_PROGRAM_ID.toBase58(),
           ownerMatches: accountInfo.owner.equals(SNS_NAME_PROGRAM_ID),
-          dataLength: accountInfo.data.length,
+          dataLength: snsDataLength,
         });
 
         // Check if the account is owned by SNS Name Program
@@ -573,19 +576,23 @@ export function useHydentity() {
       // Build the initialize_vault instruction
       const instruction = await buildInitializeVaultInstruction(publicKey, snsNameAccount, programId);
 
-      // Build SNS update instruction to set resolver to vault authority
-      // This writes the vault authority pubkey into the SNS name account data
-      const snsUpdateIx = buildSnsUpdateInstruction(
-        snsNameAccount,
-        publicKey,
-        0, // offset 0 in name data
-        vaultAuthority.toBuffer(),
-      );
-
-      console.log('Setting SNS resolver to vault authority:', vaultAuthority.toBase58());
-
       // Create and configure transaction
-      const transaction = new Transaction().add(instruction).add(snsUpdateIx);
+      const transaction = new Transaction().add(instruction);
+
+      // Set SNS resolver to vault authority if the name account has enough data space
+      // SNS header is 96 bytes; we need 32 more for the vault authority pubkey
+      if (snsDataLength >= 96 + 32) {
+        const snsUpdateIx = buildSnsUpdateInstruction(
+          snsNameAccount,
+          publicKey,
+          0, // offset 0 in name data (relative to byte 96)
+          vaultAuthority.toBuffer(),
+        );
+        transaction.add(snsUpdateIx);
+        console.log('Setting SNS resolver to vault authority:', vaultAuthority.toBase58());
+      } else if (snsDataLength > 0) {
+        console.log('SNS name account data too small for resolver update:', snsDataLength, 'bytes (need 128)');
+      }
 
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
