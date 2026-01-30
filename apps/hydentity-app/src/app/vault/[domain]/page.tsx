@@ -638,6 +638,60 @@ function VaultDetailContent() {
           </motion.div>
         )}
 
+        {/* Domain Ownership Banner */}
+        <div className={`rounded-xl p-4 border mb-4 flex items-center justify-between ${
+          vault.domainTransferred
+            ? 'bg-hx-blue/5 border-hx-blue/30'
+            : 'bg-orange-500/5 border-orange-500/30'
+        }`}>
+          <div className="flex items-center gap-3">
+            <span className={`text-sm ${vault.domainTransferred ? 'text-hx-blue' : 'text-orange-400'}`}>
+              {vault.domainTransferred ? '🔒' : '⚠️'}
+            </span>
+            <p className={`text-sm font-medium ${vault.domainTransferred ? 'text-hx-blue' : 'text-orange-400'}`}>
+              {vault.domainTransferred
+                ? 'Domain is in vault'
+                : 'You must transfer ownership to the vault'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {vault.domainTransferred ? (
+              <>
+                <button
+                  onClick={() => setShowReclaimModal(true)}
+                  disabled={isReclaiming || isSyncingState}
+                  className="px-3 py-1.5 text-xs text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-lg hover:bg-orange-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isReclaiming ? 'Reclaiming...' : 'Reclaim Domain'}
+                </button>
+                <button
+                  onClick={handleSyncDomainState}
+                  disabled={isSyncingState || isReclaiming}
+                  className="px-3 py-1.5 text-xs text-hx-text bg-hx-text/10 rounded-lg hover:bg-hx-text/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Sync the on-chain vault state with actual domain ownership"
+                >
+                  {isSyncingState ? 'Syncing...' : 'Sync'}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleTransferToVault}
+                disabled={isTransferring}
+                className="px-4 py-1.5 text-sm bg-hx-green text-hx-bg rounded-lg font-medium hover:bg-hx-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              >
+                {isTransferring ? (
+                  <>
+                    <span className="animate-spin text-xs">⏳</span>
+                    Transferring...
+                  </>
+                ) : (
+                  'Transfer Domain'
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Balance Card with Withdraw */}
         <div className="bg-hx-card-bg rounded-xl p-6 border border-hx-text/10 mb-4">
           <div className="flex items-center justify-between">
@@ -727,91 +781,6 @@ function VaultDetailContent() {
           <StatCard label="Claim Splits" value={`${vault.minSplits}-${vault.maxSplits}`} />
           <StatCard label="Claim Delay" value={`${vault.maxDelaySeconds / 60}m max`} />
         </div>
-
-        {/* Domain Ownership Section */}
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold text-hx-white mb-4 flex items-center gap-2">
-            <span>🔐</span> Domain Ownership
-          </h2>
-          
-          <div className={`p-6 rounded-xl border ${
-            vault.domainTransferred 
-              ? 'bg-hx-blue/5 border-hx-blue/30' 
-              : 'bg-orange-500/5 border-orange-500/30'
-          }`}>
-            <div className="flex items-start justify-between">
-              <div>
-                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium mb-3 ${
-                  vault.domainTransferred 
-                    ? 'bg-hx-blue/10 text-hx-blue' 
-                    : 'bg-orange-500/10 text-orange-400'
-                }`}>
-                  {vault.domainTransferred ? '🔒 Domain Owned by Vault' : '⚠️ Transfer Required'}
-                </div>
-
-                <h3 className="text-lg font-medium text-hx-white mb-2">
-                  {vault.domainTransferred ? 'Vault Active' : 'Transfer Domain to Activate Vault'}
-                </h3>
-
-                <p className="text-hx-text text-sm max-w-xl">
-                  {vault.domainTransferred
-                    ? 'Your domain ownership has been transferred to the vault authority. Funds sent to this .sol domain will be received by the vault.'
-                    : 'You must transfer your domain to the vault for it to receive funds. Until the domain is transferred, sending to your .sol name will not route to this vault.'}
-                </p>
-
-                {!vault.domainTransferred && (
-                  <div className="mt-4 p-4 bg-hx-bg/50 rounded-lg border border-hx-text/10">
-                    <h4 className="text-sm font-medium text-hx-white mb-2">How it works</h4>
-                    <p className="text-xs text-hx-text">
-                      Transferring your domain to the vault makes the vault authority the owner of the .sol name, so funds sent to it are received by the vault.
-                      You can reclaim domain ownership at any time from this page.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="mt-6 flex gap-3">
-              {vault.domainTransferred ? (
-                <>
-                  <button
-                    onClick={() => setShowReclaimModal(true)}
-                    disabled={isReclaiming || isSyncingState}
-                    className="px-5 py-2.5 bg-orange-500/10 text-orange-400 rounded-lg font-medium hover:bg-orange-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isReclaiming ? 'Reclaiming...' : 'Reclaim Domain'}
-                  </button>
-                  <button
-                    onClick={handleSyncDomainState}
-                    disabled={isSyncingState || isReclaiming}
-                    className="px-5 py-2.5 bg-hx-text/10 text-hx-text rounded-lg font-medium hover:bg-hx-text/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Sync the on-chain vault state with actual domain ownership (fixes state mismatch issues)"
-                  >
-                    {isSyncingState ? 'Syncing...' : 'Sync State'}
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={handleTransferToVault}
-                  disabled={isTransferring}
-                  className="px-5 py-2.5 bg-hx-green text-hx-bg rounded-lg font-medium hover:bg-hx-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isTransferring ? (
-                    <>
-                      <span className="animate-spin">⏳</span>
-                      Transferring...
-                    </>
-                  ) : (
-                    <>
-                      <span>🔒</span>
-                      Transfer Domain to Vault
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
-        </section>
 
         {/* Vault Info Section */}
         <section className="mb-8">

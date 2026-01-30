@@ -908,16 +908,22 @@ export default function SetupPage() {
                     View Transaction →
                   </a>
                 )}
-                <div className="mt-6 space-y-3">
+                <div className="mt-6 p-4 bg-orange-500/10 rounded-lg border border-orange-500/30 text-left">
+                  <p className="text-sm font-medium text-orange-400 mb-1">Next step: Transfer your domain</p>
+                  <p className="text-xs text-hx-text">
+                    You must transfer domain ownership to the vault for it to receive funds sent to your .sol name.
+                  </p>
+                </div>
+                <div className="mt-4 space-y-3">
                   <a
-                    href="/settings"
-                    className="block px-6 py-3 bg-hx-bg border border-hx-green/50 text-hx-green rounded-lg font-semibold hover:bg-hx-green/10 transition-all"
+                    href={`/vault/${getDomainName()}`}
+                    className="block px-6 py-3 bg-hx-green text-hx-bg rounded-lg font-semibold hover:bg-[#a8f740] transition-all"
                   >
-                    Configure Privacy Settings
+                    Transfer Domain to Vault
                   </a>
                   <a
                     href="/"
-                    className="block px-6 py-3 bg-hx-green text-hx-bg rounded-lg font-semibold hover:bg-[#a8f740] transition-all"
+                    className="block px-6 py-3 bg-hx-bg border border-hx-text/20 text-hx-text rounded-lg font-semibold hover:bg-hx-text/5 transition-all"
                   >
                     Go to Dashboard
                   </a>
