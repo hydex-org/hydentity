@@ -9,6 +9,7 @@ import {
   SystemProgram,
   LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
+import { pollForConfirmation } from '@/lib/pollForConfirmation';
 import bs58 from 'bs58';
 import {
   NATIVE_MINT,
@@ -515,21 +516,8 @@ export function useDevnetDomainRegistration() {
         console.log('Domain registration transaction sent:', signature);
         setTxSignature(signature);
 
-        // Wait for confirmation
-        const confirmation = await connection.confirmTransaction(
-          {
-            signature,
-            blockhash,
-            lastValidBlockHeight,
-          },
-          'confirmed'
-        );
-
-        if (confirmation.value.err) {
-          throw new Error(
-            `Transaction failed: ${JSON.stringify(confirmation.value.err)}`
-          );
-        }
+        // Wait for confirmation (polling to avoid WebSocket issues)
+        await pollForConfirmation(connection, signature, lastValidBlockHeight);
 
         console.log('Domain registered successfully:', signature);
         

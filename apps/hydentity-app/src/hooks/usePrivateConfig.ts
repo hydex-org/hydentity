@@ -20,6 +20,7 @@ import { useCallback, useState, useRef } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey, Transaction, TransactionInstruction, SystemProgram } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
+import { pollForConfirmation } from '@/lib/pollForConfirmation';
 
 /**
  * Compute Anchor instruction discriminator
@@ -515,12 +516,8 @@ export function usePrivateConfig(): UsePrivateConfigReturn {
       const signature = await sendTransaction(transaction, connection);
       console.log('Transaction sent:', signature);
 
-      // Wait for confirmation
-      await connection.confirmTransaction({
-        signature,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed');
+      // Wait for confirmation (polling to avoid WebSocket issues)
+      await pollForConfirmation(connection, signature, lastValidBlockHeight);
 
       // Optionally wait for MPC computation finalization
       console.log('Waiting for MPC computation finalization...');

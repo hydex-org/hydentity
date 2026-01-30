@@ -22,6 +22,7 @@ import {
 } from '@solana/web3.js';
 import { useTestMode } from '@/contexts/TestModeContext';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { pollForConfirmation } from '@/lib/pollForConfirmation';
 
 // =============================================================================
 // PROGRAM CONFIGURATION
@@ -610,16 +611,8 @@ export function useHydentity() {
         throw sendError;
       }
 
-      // Wait for confirmation
-      const confirmation = await connection.confirmTransaction({
-        signature,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed');
-
-      if (confirmation.value.err) {
-        throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
-      }
+      // Wait for confirmation (polling to avoid WebSocket issues)
+      await pollForConfirmation(connection, signature, lastValidBlockHeight);
 
       console.log('Vault initialized successfully:', signature);
 
@@ -811,11 +804,7 @@ export function useHydentity() {
       // Send transaction
       const signature = await sendTransaction(transaction, connection);
 
-      await connection.confirmTransaction({
-        signature,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed');
+      await pollForConfirmation(connection, signature, lastValidBlockHeight);
 
       console.log('Direct withdrawal successful:', signature);
 
@@ -920,12 +909,8 @@ export function useHydentity() {
       console.log('Sending domain transfer transaction...');
       const transferSig = await sendTransaction(transaction, connection);
 
-      // Wait for confirmation
-      await connection.confirmTransaction({
-        signature: transferSig,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed');
+      // Wait for confirmation (polling to avoid WebSocket issues)
+      await pollForConfirmation(connection, transferSig, lastValidBlockHeight);
 
       console.log('Domain transfer successful:', transferSig);
 
@@ -1000,11 +985,7 @@ export function useHydentity() {
         preflightCommitment: 'confirmed',
       });
 
-      await connection.confirmTransaction({
-        signature,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed');
+      await pollForConfirmation(connection, signature, lastValidBlockHeight);
 
       console.log('Domain marked as transferred:', signature);
       return signature;
@@ -1080,11 +1061,7 @@ export function useHydentity() {
 
       const signature = await sendTransaction(transaction, connection);
 
-      await connection.confirmTransaction({
-        signature,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed');
+      await pollForConfirmation(connection, signature, lastValidBlockHeight);
 
       console.log('Domain reclaimed successfully:', signature);
 
@@ -1404,11 +1381,7 @@ export function useHydentity() {
         preflightCommitment: 'confirmed',
       });
 
-      await connection.confirmTransaction({
-        signature,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed');
+      await pollForConfirmation(connection, signature, lastValidBlockHeight);
 
       console.log('Vault closed successfully:', signature);
 
@@ -1481,11 +1454,7 @@ export function useHydentity() {
         preflightCommitment: 'confirmed',
       });
 
-      await connection.confirmTransaction({
-        signature,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed');
+      await pollForConfirmation(connection, signature, lastValidBlockHeight);
 
       console.log('Vault claimed successfully:', signature);
 

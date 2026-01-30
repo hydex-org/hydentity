@@ -19,6 +19,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey, Transaction, TransactionInstruction, SystemProgram } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
+import { pollForConfirmation } from '@/lib/pollForConfirmation';
 
 /**
  * Compute Anchor instruction discriminator
@@ -412,12 +413,8 @@ export function useWithdrawals(): UseWithdrawalsReturn {
       const signature = await sendTransaction(transaction, connection);
       console.log('Transaction sent:', signature);
 
-      // Wait for confirmation
-      await connection.confirmTransaction({
-        signature,
-        blockhash,
-        lastValidBlockHeight,
-      }, 'confirmed');
+      // Wait for confirmation (polling to avoid WebSocket issues)
+      await pollForConfirmation(connection, signature, lastValidBlockHeight);
 
       // Create pending withdrawal tracker
       const now = new Date();
