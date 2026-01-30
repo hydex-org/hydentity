@@ -1396,7 +1396,12 @@ function VaultDetailContent() {
                 }
                 className="flex-1 px-4 py-2.5 bg-hx-purple text-white rounded-lg font-medium hover:bg-hx-purple/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isWithdrawingFromPrivacyCash ? 'Withdrawing...' : 'Withdraw Privately'}
+                {isWithdrawingFromPrivacyCash ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
+                    Processing...
+                  </span>
+                ) : 'Withdraw Privately'}
               </button>
             </div>
           </motion.div>

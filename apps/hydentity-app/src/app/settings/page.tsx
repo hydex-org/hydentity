@@ -626,8 +626,8 @@ export default function SettingsPage() {
           >
             <h2 className="text-base font-semibold mb-4 text-hx-white">Default Claim Settings</h2>
             <p className="text-xs text-hx-text mb-4">
-              Controls how funds are withdrawn from Umbra to your private wallet.
-              Splits and delays are applied <span className="text-hx-green">after</span> the Umbra mixer to maximize unlinkability.
+              Controls how funds are withdrawn from the privacy mixer to your private wallet.
+              Splits and delays are applied <span className="text-hx-green">after</span> the mixer to maximize unlinkability.
             </p>
             
             {/* Privacy Flow Diagram */}
@@ -635,7 +635,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2 justify-center">
                 <span>Vault</span>
                 <span className="text-hx-green">══►</span>
-                <span>Umbra</span>
+                <span>Mixer</span>
                 <span className="text-hx-blue">──►</span>
                 <span>Wallet</span>
               </div>
@@ -701,7 +701,7 @@ export default function SettingsPage() {
                   Withdrawal Splits Range
                 </label>
                 <p className="text-[10px] text-hx-text/60 mb-3">
-                  Number of separate withdrawals from Umbra: <span className="text-hx-white font-medium">{minSplits} – {maxSplits}</span>
+                  Number of separate withdrawals from the mixer: <span className="text-hx-white font-medium">{minSplits} – {maxSplits}</span>
                 </p>
                 
                 {/* Custom Range Slider */}

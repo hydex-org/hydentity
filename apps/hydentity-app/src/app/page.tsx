@@ -204,16 +204,6 @@ export default function Home() {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
-              {/* Tab Navigation */}
-              <div className="flex justify-center mb-8">
-                <div className="inline-flex bg-hx-card-bg rounded-lg p-1">
-                  <TabButton active>Dashboard</TabButton>
-                  <Link href="/claim">
-                    <TabButton>Claim</TabButton>
-                  </Link>
-                </div>
-              </div>
-
               {/* Quick Actions */}
               <div className="flex justify-center gap-4 mb-12">
                 <Link href="/setup">
@@ -418,20 +408,6 @@ export default function Home() {
         </div>
       )}
     </main>
-  );
-}
-
-function TabButton({ children, active }: { children: React.ReactNode; active?: boolean }) {
-  return (
-    <button
-      className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${
-        active 
-          ? 'bg-hx-bg text-hx-white' 
-          : 'text-hx-text hover:text-hx-white'
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 

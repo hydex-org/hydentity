@@ -407,7 +407,7 @@ export function useHydentity() {
             snsNameAccount: snsNameKey,
             balance: BigInt(balance),
             totalDeposits: Number(vaultData.depositCount),
-            pendingDeposits: 0, // Would need to track pending Umbra deposits
+            pendingDeposits: 0, // Would need to track pending deposits
             policyEnabled,
             minSplits,
             maxSplits,

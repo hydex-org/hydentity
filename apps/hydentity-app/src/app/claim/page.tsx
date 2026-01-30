@@ -145,7 +145,7 @@ export default function ClaimPage() {
             Private Claim
           </h1>
           <p className="text-sm text-hx-text">
-            Claim your vault funds through the Umbra mixer.
+            Claim your vault funds through the privacy mixer.
           </p>
         </motion.div>
 
