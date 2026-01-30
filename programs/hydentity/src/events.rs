@@ -46,3 +46,18 @@ pub struct WithdrawalCancelled {
     pub completed_splits: u8,
     pub timestamp: i64,
 }
+
+#[event]
+pub struct VaultClosed {
+    pub vault: Pubkey,
+    pub owner: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct VaultClaimed {
+    pub vault: Pubkey,
+    pub previous_owner: Pubkey,
+    pub new_owner: Pubkey,
+    pub timestamp: i64,
+}

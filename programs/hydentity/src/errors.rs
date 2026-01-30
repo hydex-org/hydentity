@@ -117,5 +117,8 @@ pub enum HydentityError {
 
     #[msg("Invalid config update")]
     InvalidConfigUpdate,
+
+    #[msg("New owner is the same as current vault owner")]
+    VaultOwnerUnchanged,
 }
 

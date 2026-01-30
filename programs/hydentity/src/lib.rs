@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+#[cfg(feature = "arcium")]
 use arcium_anchor::prelude::*;
 
 pub mod constants;
@@ -9,109 +10,28 @@ pub mod events;
 
 use constants::*;
 use errors::HydentityError;
+#[cfg(feature = "arcium")]
 use events::ConfigStored;
-use state::{EncryptedVaultConfig, NameVault, ENCRYPTED_CONFIG_SEED};
+use state::{NameVault, VaultAuthority, PrivacyPolicy};
+#[cfg(feature = "arcium")]
+use state::{EncryptedVaultConfig, ENCRYPTED_CONFIG_SEED};
 
-// Import state types for account structs
-use state::{VaultAuthority, PrivacyPolicy};
-
-
+#[cfg(feature = "arcium")]
 /// Computation definition offset for generate_withdrawal_plan
 /// Using offset 2 (fixed) - must match the uploadCircuit SDK offset
 const COMP_DEF_OFFSET_GENERATE_PLAN: u32 = 2;
 
 declare_id!("7uBSpWjqTfoSNc45JRFTAiJ6agfNDZPPM48Scy987LDx");
 
+#[cfg(feature = "arcium")]
 /// Computation definition offset for store_private_config
 /// Using offset 1 (fixed) - must match the uploadCircuit SDK offset
 const COMP_DEF_OFFSET_STORE_PRIVATE_CONFIG: u32 = 1;
 
-#[arcium_program]
+#[cfg_attr(feature = "arcium", arcium_program)]
+#[cfg_attr(not(feature = "arcium"), program)]
 pub mod hydentity {
     use super::*;
-
-    // ========== Arcium MPC Instructions ==========
-
-    /// Initialize computation definition for store_private_config
-    /// Must be called once before using store_private_config
-    pub fn init_store_private_config_comp_def(
-        ctx: Context<InitStorePrivateConfigCompDef>,
-    ) -> Result<()> {
-        init_comp_def(ctx.accounts, None, None)?;
-        Ok(())
-    }
-
-    /// Store private vault configuration via Arcium MPC
-    pub fn store_private_config(
-        ctx: Context<StorePrivateConfig>,
-        computation_offset: u64,
-        encrypted_data: [u8; 32],  // Simplified for testing
-        pub_key: [u8; 32],
-        nonce_u128: u128,
-    ) -> Result<()> {
-        ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
-
-        let clock = Clock::get()?;
-
-        let args = ArgBuilder::new()
-            .x25519_pubkey(pub_key)
-            .plaintext_u128(nonce_u128)
-            .encrypted_u8(encrypted_data)
-            .plaintext_u64(clock.slot)
-            .build();
-
-        queue_computation(
-            ctx.accounts,
-            computation_offset,
-            args,
-            None,
-            vec![StorePrivateConfigCallback::callback_ix(
-                computation_offset,
-                &ctx.accounts.mxe_account,
-                &[],
-            )?],
-            1,
-            0,
-        )?;
-
-        msg!("Queued Arcium computation for config storage");
-        Ok(())
-    }
-
-    /// Callback for store_private_config MPC computation
-    #[arcium_callback(encrypted_ix = "store_private_config")]
-    pub fn store_private_config_callback(
-        ctx: Context<StorePrivateConfigCallback>,
-        output: SignedComputationOutputs<StorePrivateConfigOutput>,
-    ) -> Result<()> {
-        let _result = match output.verify_output(
-            &ctx.accounts.cluster_account,
-            &ctx.accounts.computation_account,
-        ) {
-            Ok(StorePrivateConfigOutput { field_0 }) => field_0,
-            Err(_) => return Err(HydentityError::ComputationAborted.into()),
-        };
-
-        let clock = Clock::get()?;
-
-        emit!(ConfigStored {
-            vault: ctx.accounts.payer.key(),
-            config_hash: [0u8; 32],
-            timestamp: clock.unix_timestamp,
-        });
-
-        msg!("Config stored successfully");
-        Ok(())
-    }
-
-    /// Initialize computation definition for generate_withdrawal_plan
-    /// Must be called once before using request_withdrawal
-    pub fn init_generate_plan_comp_def(
-        ctx: Context<InitGeneratePlanCompDef>,
-    ) -> Result<()> {
-        init_comp_def(ctx.accounts, None, None)?;
-        Ok(())
-    }
 
     // ========== Core Vault Instructions ==========
 
@@ -265,6 +185,64 @@ pub mod hydentity {
         Ok(())
     }
 
+    // ========== Vault Lifecycle Instructions ==========
+
+    /// Close a vault and reclaim rent
+    /// Owner closes their vault. No balance checks - user is responsible for clearing funds first.
+    /// Anchor's `close = owner` transfers all lamports from each PDA back to the owner.
+    pub fn close_vault(ctx: Context<CloseVault>) -> Result<()> {
+        let clock = Clock::get()?;
+
+        emit!(events::VaultClosed {
+            vault: ctx.accounts.vault.key(),
+            owner: ctx.accounts.owner.key(),
+            timestamp: clock.unix_timestamp,
+        });
+
+        msg!("Vault closed by owner: {}", ctx.accounts.owner.key());
+
+        Ok(())
+    }
+
+    /// Claim an existing vault after domain transfer/sale
+    /// New domain owner takes over an existing vault.
+    pub fn claim_vault(ctx: Context<ClaimVault>) -> Result<()> {
+        let clock = Clock::get()?;
+        let now = clock.unix_timestamp;
+
+        // Verify the signer is the current SNS domain owner
+        verify_sns_ownership(
+            &ctx.accounts.sns_name_account.to_account_info(),
+            &ctx.accounts.new_owner.key(),
+        )?;
+
+        let previous_owner = ctx.accounts.vault.owner;
+
+        // Update vault owner
+        let vault = &mut ctx.accounts.vault;
+        vault.owner = ctx.accounts.new_owner.key();
+
+        // Reset policy for new owner
+        let policy = &mut ctx.accounts.policy;
+        policy.destinations = vec![ctx.accounts.new_owner.key()];
+        policy.policy_nonce = policy.policy_nonce
+            .checked_add(1)
+            .ok_or(HydentityError::ArithmeticOverflow)?;
+        policy.updated_at = now;
+
+        emit!(events::VaultClaimed {
+            vault: ctx.accounts.vault.key(),
+            previous_owner,
+            new_owner: ctx.accounts.new_owner.key(),
+            timestamp: now,
+        });
+
+        msg!("Vault claimed by new owner: {}", ctx.accounts.new_owner.key());
+        msg!("Previous owner: {}", previous_owner);
+
+        Ok(())
+    }
+
     // ========== Withdrawal Instructions ==========
 
     /// Direct withdrawal - bypass privacy features (owner only)
@@ -405,6 +383,84 @@ pub struct WithdrawDirectAccounts<'info> {
     pub system_program: Program<'info, System>,
 }
 
+// ========== Vault Lifecycle Account Structs ==========
+
+/// Accounts for close_vault instruction
+#[derive(Accounts)]
+pub struct CloseVault<'info> {
+    /// The vault owner (must be signer, receives closed account lamports)
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    /// The SNS name account
+    /// CHECK: Validated via vault's sns_name field
+    pub sns_name_account: UncheckedAccount<'info>,
+
+    /// The vault to close
+    #[account(
+        mut,
+        seeds = [VAULT_SEED, sns_name_account.key().as_ref()],
+        bump = vault.bump,
+        constraint = vault.owner == owner.key() @ HydentityError::Unauthorized,
+        constraint = vault.sns_name == sns_name_account.key() @ HydentityError::InvalidSnsName,
+        constraint = !vault.domain_transferred @ HydentityError::DomainAlreadyTransferred,
+        close = owner,
+    )]
+    pub vault: Account<'info, NameVault>,
+
+    /// The vault authority to close
+    #[account(
+        mut,
+        seeds = [VAULT_AUTH_SEED, sns_name_account.key().as_ref()],
+        bump = vault_authority.bump,
+        close = owner,
+    )]
+    pub vault_authority: Account<'info, VaultAuthority>,
+
+    /// The privacy policy to close
+    #[account(
+        mut,
+        seeds = [POLICY_SEED, sns_name_account.key().as_ref()],
+        bump = policy.bump,
+        close = owner,
+    )]
+    pub policy: Account<'info, PrivacyPolicy>,
+}
+
+/// Accounts for claim_vault instruction
+#[derive(Accounts)]
+pub struct ClaimVault<'info> {
+    /// The new domain owner (must be signer)
+    #[account(mut)]
+    pub new_owner: Signer<'info>,
+
+    /// The SNS name account
+    /// CHECK: Validated by constraint and in handler via verify_sns_ownership
+    #[account(
+        constraint = sns_name_account.owner == &SNS_NAME_PROGRAM_ID @ HydentityError::InvalidSnsName
+    )]
+    pub sns_name_account: UncheckedAccount<'info>,
+
+    /// The vault to claim
+    #[account(
+        mut,
+        seeds = [VAULT_SEED, sns_name_account.key().as_ref()],
+        bump = vault.bump,
+        constraint = vault.sns_name == sns_name_account.key() @ HydentityError::InvalidSnsName,
+        constraint = vault.owner != new_owner.key() @ HydentityError::VaultOwnerUnchanged,
+    )]
+    pub vault: Account<'info, NameVault>,
+
+    /// The privacy policy to reset
+    #[account(
+        mut,
+        seeds = [POLICY_SEED, sns_name_account.key().as_ref()],
+        bump = policy.bump,
+        constraint = policy.vault == vault.key() @ HydentityError::InvalidPolicyConfig,
+    )]
+    pub policy: Account<'info, PrivacyPolicy>,
+}
+
 // ========== Helper Functions ==========
 
 /// Verify that the signer owns the SNS name account
@@ -441,6 +497,7 @@ fn verify_sns_ownership(sns_account: &AccountInfo, expected_owner: &Pubkey) -> R
 
 // ========== Arcium Account Structs ==========
 
+#[cfg(feature = "arcium")]
 /// Local error code for Arcium macros
 #[error_code]
 pub enum ErrorCode {
@@ -448,6 +505,7 @@ pub enum ErrorCode {
     ClusterNotSet,
 }
 
+#[cfg(feature = "arcium")]
 /// Accounts for store_private_config instruction
 #[queue_computation_accounts("store_private_config", payer)]
 #[derive(Accounts)]
@@ -528,6 +586,7 @@ pub struct StorePrivateConfig<'info> {
     pub arcium_program: Program<'info, Arcium>,
 }
 
+#[cfg(feature = "arcium")]
 /// Callback accounts for store_private_config
 #[callback_accounts("store_private_config")]
 #[derive(Accounts)]
@@ -554,6 +613,7 @@ pub struct StorePrivateConfigCallback<'info> {
     pub instructions_sysvar: AccountInfo<'info>,
 }
 
+#[cfg(feature = "arcium")]
 /// Accounts for initializing the store_private_config computation definition
 #[init_computation_definition_accounts("store_private_config", payer)]
 #[derive(Accounts)]
@@ -572,6 +632,7 @@ pub struct InitStorePrivateConfigCompDef<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[cfg(feature = "arcium")]
 /// Accounts for initializing the generate_withdrawal_plan computation definition
 #[init_computation_definition_accounts("generate_withdrawal_plan", payer)]
 #[derive(Accounts)]
