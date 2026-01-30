@@ -240,6 +240,34 @@ async function buildInitializeVaultInstruction(
 }
 
 /**
+ * Build SNS Name Service Update instruction
+ * Writes data into the name account's data field.
+ * Format: [1 (tag), offset (u32 LE), length (u32 LE), data bytes]
+ * Accounts: [name_account (writable), name_owner (signer)]
+ */
+function buildSnsUpdateInstruction(
+  nameAccount: PublicKey,
+  owner: PublicKey,
+  offset: number,
+  inputData: Buffer,
+): TransactionInstruction {
+  const data = Buffer.alloc(1 + 4 + 4 + inputData.length);
+  data.writeUInt8(1, 0); // Update instruction tag
+  data.writeUInt32LE(offset, 1); // Offset into name data
+  data.writeUInt32LE(inputData.length, 5); // Data length
+  inputData.copy(data, 9); // Data bytes
+
+  return new TransactionInstruction({
+    programId: SNS_NAME_PROGRAM_ID,
+    keys: [
+      { pubkey: nameAccount, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: true, isWritable: false },
+    ],
+    data,
+  });
+}
+
+/**
  * Hook for interacting with Hydentity protocol
  */
 export function useHydentity() {
@@ -545,8 +573,19 @@ export function useHydentity() {
       // Build the initialize_vault instruction
       const instruction = await buildInitializeVaultInstruction(publicKey, snsNameAccount, programId);
 
+      // Build SNS update instruction to set resolver to vault authority
+      // This writes the vault authority pubkey into the SNS name account data
+      const snsUpdateIx = buildSnsUpdateInstruction(
+        snsNameAccount,
+        publicKey,
+        0, // offset 0 in name data
+        vaultAuthority.toBuffer(),
+      );
+
+      console.log('Setting SNS resolver to vault authority:', vaultAuthority.toBase58());
+
       // Create and configure transaction
-      const transaction = new Transaction().add(instruction);
+      const transaction = new Transaction().add(instruction).add(snsUpdateIx);
 
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
