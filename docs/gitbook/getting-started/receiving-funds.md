@@ -2,7 +2,7 @@
 
 ## How It Works
 
-Once your Hydentity vault is created, receiving funds is simple. Anyone can send SOL or SPL tokens to your `.sol` domain, and the funds will arrive in your vault.
+Once your Hydentity vault is created and you've transferred your domain to the vault, receiving funds is simple. Anyone can send SOL or SPL tokens to your `.sol` domain, and the funds will arrive in your vault.
 
 ```
 Sender                          Your Vault
@@ -13,6 +13,8 @@ Sender                          Your Vault
    │        Funds in vault          │
    │                                │
 ```
+
+> **Important:** Your domain must be transferred to the vault for this to work. Until the transfer, sending to your `.sol` name routes to your personal wallet, not the vault. See [Creating a Vault](creating-a-vault.md) for setup instructions.
 
 ---
 
@@ -119,5 +121,4 @@ View all deposits to your vault in the vault details page:
 For maximum privacy when receiving:
 
 1. **Don't share vault address directly** - Always share your `.sol` domain instead
-2. **Transfer domain ownership** - Hide your original wallet from domain registry
-3. **Withdraw through Privacy Cash** - Break the link when claiming funds
+2. **Withdraw through Privacy Cash** - Break the link when claiming funds

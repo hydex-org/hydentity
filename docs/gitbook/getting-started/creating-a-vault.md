@@ -100,29 +100,30 @@ When you create a vault, the program:
 
 ## After Creation
 
-Once your vault is created:
+Once your vault is created, you need to transfer your domain to the vault for it to start receiving funds.
 
-- **Share your domain**: Anyone can now send funds to `yourdomain.sol`
-- **Funds go to your vault**: Not directly to your wallet
-- **Check your dashboard**: See your vault balance anytime
-- **Withdraw privately**: Use Privacy Cash to claim funds anonymously
+### Step 6: Transfer Domain to Vault
+
+This step is **required** for the vault to work. Until the domain is transferred, sending to your `.sol` name will not route to the vault.
+
+1. On the vault detail page, find the "Domain Ownership" section
+2. Click **"Transfer Domain to Vault"**
+3. Approve the SNS transfer transaction in your wallet
+
+**What this does:**
+- The vault authority PDA becomes the owner of the `.sol` domain
+- Funds sent to `yourdomain.sol` are now received by the vault
+- Your original wallet is no longer listed as the domain owner
+
+**Reversible:** You can reclaim domain ownership at any time using the "Reclaim Domain" option on the vault page.
 
 ---
 
-## Optional: Transfer Domain Ownership
+Once the domain is transferred:
 
-For enhanced privacy, you can transfer your SNS domain ownership to the vault:
-
-1. Go to vault settings
-2. Click "Transfer Domain to Vault"
-3. Approve the SNS transfer transaction
-
-**What this does:**
-- Your original wallet is no longer listed as domain owner
-- The vault PDA becomes the domain owner
-- Even the domain registry doesn't show your wallet
-
-**Reversible:** You can reclaim domain ownership anytime using the "Reclaim Domain" option.
+- **Share your domain**: Anyone can now send funds to `yourdomain.sol` and they arrive in the vault
+- **Check your dashboard**: See your vault balance anytime
+- **Withdraw privately**: Use Privacy Cash to claim funds anonymously
 
 ---
 

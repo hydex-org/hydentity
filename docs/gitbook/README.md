@@ -23,10 +23,10 @@ This transparency makes it trivial to track someone's finances, identify their h
 Hydentity creates a **privacy vault** between your public domain and your private wallet(s). Here's how it works:
 
 1. **Create a Vault** - Link your `.sol` domain to a Hydentity vault
-2. **Receive Privately** - Payments to `yourdomain.sol` go to your vault, not your personal wallet
-3. **Withdraw Anonymously** - Route funds through Privacy Cash's ZK mixer to break the transaction trail
-4. **Stay in Control** - Full access to your funds at all times with emergency direct withdrawal
-5. **Transfer Domain Ownership** *(Optional)* - Transfer your domain's ownership to the vault itself. Anyone looking up the owner of your `.sol` domain will see the vault address instead of your personal wallet, adding another layer of privacy
+2. **Transfer Domain to Vault** - Transfer your domain's ownership to the vault so that funds sent to your `.sol` name are received by the vault
+3. **Receive Privately** - Payments to `yourdomain.sol` go to your vault, not your personal wallet
+4. **Withdraw Anonymously** - Route funds through Privacy Cash's ZK mixer to break the transaction trail
+5. **Stay in Control** - Full access to your funds at all times with emergency direct withdrawal. You can reclaim domain ownership at any time
 
 ---
 

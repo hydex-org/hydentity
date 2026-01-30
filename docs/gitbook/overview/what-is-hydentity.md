@@ -20,8 +20,8 @@ When someone sends funds to your `.sol` domain, the funds go to a Hydentity vaul
 
 Hydentity uses a layered privacy approach:
 
-### 1. Vault Separation
-Your SNS domain resolves to a vault address, not your personal wallet. This immediately separates your public identity from your private holdings.
+### 1. Domain Transfer & Vault Separation
+When you create a vault, you transfer your SNS domain ownership to the vault authority. Your `.sol` domain then resolves to the vault address instead of your personal wallet, separating your public identity from your private holdings.
 
 ### 2. Encrypted Destinations
 Your withdrawal destination wallets are encrypted using Arcium's Multi-Party Computation (MPC) network. The destination addresses are never exposed on-chain in plaintext.

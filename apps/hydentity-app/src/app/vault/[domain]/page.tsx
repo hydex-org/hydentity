@@ -746,25 +746,25 @@ function VaultDetailContent() {
                     ? 'bg-hx-blue/10 text-hx-blue' 
                     : 'bg-orange-500/10 text-orange-400'
                 }`}>
-                  {vault.domainTransferred ? '🔒 Domain Owned by Vault' : '⚠️ Domain Owned Externally'}
+                  {vault.domainTransferred ? '🔒 Domain Owned by Vault' : '⚠️ Transfer Required'}
                 </div>
-                
+
                 <h3 className="text-lg font-medium text-hx-white mb-2">
-                  {vault.domainTransferred ? 'Enhanced Privacy Active' : 'Transfer for Enhanced Privacy'}
+                  {vault.domainTransferred ? 'Vault Active' : 'Transfer Domain to Activate Vault'}
                 </h3>
-                
+
                 <p className="text-hx-text text-sm max-w-xl">
-                  {vault.domainTransferred 
-                    ? 'Your domain ownership has been transferred to the vault authority. The original owner wallet is no longer directly linked to this domain on-chain.'
-                    : 'Transfer your domain ownership to the vault for enhanced privacy. This breaks the on-chain link between your wallet and the domain, making fund flows harder to trace.'}
+                  {vault.domainTransferred
+                    ? 'Your domain ownership has been transferred to the vault authority. Funds sent to this .sol domain will be received by the vault.'
+                    : 'You must transfer your domain to the vault for it to receive funds. Until the domain is transferred, sending to your .sol name will not route to this vault.'}
                 </p>
-                
+
                 {!vault.domainTransferred && (
                   <div className="mt-4 p-4 bg-hx-bg/50 rounded-lg border border-hx-text/10">
-                    <h4 className="text-sm font-medium text-hx-white mb-2">⚠️ Privacy Recommendation</h4>
+                    <h4 className="text-sm font-medium text-hx-white mb-2">How it works</h4>
                     <p className="text-xs text-hx-text">
-                      For maximum privacy, claim funds to a <strong>different wallet</strong> than the one that originally owned this domain.
-                      The historical ownership is always visible on-chain, but future fund flows will be private through Privacy Cash.
+                      Transferring your domain to the vault makes the vault authority the owner of the .sol name, so funds sent to it are received by the vault.
+                      You can reclaim domain ownership at any time from this page.
                     </p>
                   </div>
                 )}

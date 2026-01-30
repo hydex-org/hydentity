@@ -81,11 +81,14 @@ A zero-knowledge mixer pool for breaking transaction links.
 
 ### Deposit Flow
 
+Once the domain has been transferred to the vault:
+
 ```
 1. Sender sends to "alice.sol"
            │
            ▼
 2. SNS resolves domain to Vault Authority PDA
+   (because domain ownership was transferred to the vault)
            │
            ▼
 3. Funds arrive in vault (Vault Authority account)
@@ -93,6 +96,8 @@ A zero-knowledge mixer pool for breaking transaction links.
            ▼
 4. Vault balance updated, deposit recorded
 ```
+
+> **Note:** The domain must be transferred to the vault authority for this flow to work. Without the transfer, SNS resolves the domain to the original wallet, not the vault.
 
 ### Private Withdrawal Flow
 

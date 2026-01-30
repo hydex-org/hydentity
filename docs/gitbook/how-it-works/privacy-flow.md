@@ -6,24 +6,27 @@ Hydentity uses multiple layers of privacy protection to ensure your funds remain
 
 ---
 
-## Layer 1: Vault Separation
+## Layer 1: Domain Transfer & Vault Separation
 
-The first layer of privacy comes from separating your public domain from your private wallet.
+The first layer of privacy comes from transferring your domain ownership to the vault, separating your public domain from your private wallet.
 
 ```
 Before Hydentity:
 alice.sol ────────────────────────────> Alice's Wallet
                                         (Publicly linked)
 
-After Hydentity:
+After Hydentity (domain transferred to vault):
 alice.sol ──────> Hydentity Vault ────> ???
                   (Public)               (Hidden)
 ```
 
 **What this achieves:**
+- Your `.sol` domain is owned by the vault authority, not your wallet
 - Senders see your domain resolving to a vault address, not your wallet
 - Your wallet address is never exposed during deposits
 - No direct on-chain link between your domain and your personal wallet
+
+> **Note:** Domain transfer is required for the vault to receive funds sent to your `.sol` name. You can reclaim ownership at any time.
 
 ---
 
