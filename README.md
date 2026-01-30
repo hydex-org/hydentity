@@ -254,8 +254,13 @@ await reclaimDomain('mydomain', newOwnerPubkey);
 
 ```bash
 # apps/hydentity-app/.env.local
-NEXT_PUBLIC_MAINNET_RPC=https://your-rpc-endpoint.com
-NEXT_PUBLIC_DEVNET_RPC=https://api.devnet.solana.com
+# RPC endpoints (server-side only, not exposed to browser)
+DEVNET_RPC=https://api.devnet.solana.com
+MAINNET_RPC=https://your-rpc-endpoint.com
+
+# WebSocket endpoints (can be public, no API keys)
+NEXT_PUBLIC_DEVNET_WS=wss://api.devnet.solana.com
+NEXT_PUBLIC_MAINNET_WS=wss://api.mainnet-beta.solana.com
 ```
 
 ## Current Status

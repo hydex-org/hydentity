@@ -12,8 +12,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Server-side only RPC endpoints (NOT prefixed with NEXT_PUBLIC_)
 const RPC_ENDPOINTS: Record<string, string> = {
-  'devnet': process.env.HELIUS_DEVNET_RPC || process.env.NEXT_PUBLIC_DEVNET_RPC || 'https://api.devnet.solana.com',
-  'mainnet-beta': process.env.HELIUS_MAINNET_RPC || process.env.NEXT_PUBLIC_MAINNET_RPC || 'https://api.mainnet-beta.solana.com',
+  'devnet': process.env.DEVNET_RPC || 'https://api.devnet.solana.com',
+  'mainnet-beta': process.env.MAINNET_RPC || 'https://api.mainnet-beta.solana.com',
 };
 
 // Allowed JSON-RPC methods (whitelist for security)

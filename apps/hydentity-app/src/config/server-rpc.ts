@@ -20,14 +20,10 @@ import { NetworkType } from './networks';
  */
 export function getServerRpcEndpoint(network: NetworkType): string {
   if (network === 'devnet') {
-    return process.env.HELIUS_DEVNET_RPC
-      || process.env.NEXT_PUBLIC_DEVNET_RPC
-      || 'https://api.devnet.solana.com';
+    return process.env.DEVNET_RPC || 'https://api.devnet.solana.com';
   }
 
-  return process.env.HELIUS_MAINNET_RPC
-    || process.env.NEXT_PUBLIC_MAINNET_RPC
-    || 'https://api.mainnet-beta.solana.com';
+  return process.env.MAINNET_RPC || 'https://api.mainnet-beta.solana.com';
 }
 
 /**

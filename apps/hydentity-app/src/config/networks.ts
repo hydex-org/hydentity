@@ -32,9 +32,9 @@ export function getClientRpcEndpoint(network: NetworkType): string {
   // During SSR/build, use a placeholder (will be replaced client-side)
   // This should never actually be used since ConnectionProvider only runs client-side
   if (network === 'devnet') {
-    return process.env.HELIUS_DEVNET_RPC || 'https://api.devnet.solana.com';
+    return process.env.DEVNET_RPC || 'https://api.devnet.solana.com';
   }
-  return process.env.HELIUS_MAINNET_RPC || 'https://api.mainnet-beta.solana.com';
+  return process.env.MAINNET_RPC || 'https://api.mainnet-beta.solana.com';
 }
 
 export interface PrivacyCashConfig {
