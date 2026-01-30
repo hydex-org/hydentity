@@ -107,6 +107,9 @@ export function Providers({ children }: ProvidersProps) {
         <WalletModalProvider>
           <NetworkProvider>
             <TestModeProvider>
+              <div className="bg-yellow-500/10 border-b border-yellow-500/30 px-4 py-2 text-center text-xs text-yellow-400">
+                <strong>Unaudited Software:</strong> This app has been tested but the code has not been audited. Interaction with this app could result in loss of funds. Use devnet for testing to avoid this risk.
+              </div>
               {children}
             </TestModeProvider>
           </NetworkProvider>
