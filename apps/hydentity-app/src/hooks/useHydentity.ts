@@ -266,7 +266,13 @@ export function useHydentity() {
       return;
     }
 
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    // Only show loading spinner on initial fetch (no vaults loaded yet).
+    // Background refreshes update silently to avoid interrupting the UI.
+    setState(prev => ({
+      ...prev,
+      isLoading: prev.vaults.length === 0,
+      error: null,
+    }));
 
     try {
       console.log(`Fetching vaults for wallet on ${network}:`, publicKey.toBase58());
@@ -463,7 +469,7 @@ export function useHydentity() {
 
     const refreshInterval = setInterval(() => {
       fetchVaults();
-    }, 15000); // 15 seconds
+    }, 30000); // 30 seconds
 
     return () => clearInterval(refreshInterval);
   }, [connected, publicKey, fetchVaults]);
