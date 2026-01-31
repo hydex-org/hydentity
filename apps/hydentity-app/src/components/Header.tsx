@@ -17,7 +17,7 @@ export function Header() {
       animate={{ y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div className="container mx-auto px-4 py-3 flex items-center justify-between justify-right">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <svg className="w-8 h-8" viewBox="0 0 32 32" fill="none">
@@ -29,7 +29,7 @@ export function Header() {
         </Link>
 
         {/* Navigation */}
-        <nav className="hidden md:flex items-center gap-6">
+        <nav className="hidden md:flex flex-1 items-center justify-end gap-6 pr-3">
           <ClientOnly>
             {connected && (
               <>
