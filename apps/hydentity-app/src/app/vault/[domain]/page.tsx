@@ -9,7 +9,8 @@ import { useConnection } from '@solana/wallet-adapter-react';
 import { useHydentity, VaultInfo } from '@/hooks/useHydentity';
 import { ClientOnly } from '@/components/ClientOnly';
 import { usePrivacyCash } from '@/hooks/usePrivacyCash';
-import { useNetwork } from '@/contexts/NetworkContext';
+import { useNetwork, useNetworkType } from '@/contexts/NetworkContext';
+import { getExplorerTxUrl } from '@/config/networks';
 
 export default function VaultDetailPage() {
   return (
@@ -42,6 +43,7 @@ function VaultDetailContent() {
   } = useHydentity();
 
   const { config } = useNetwork();
+  const networkType = useNetworkType();
   const {
     isAvailable: privacyCashAvailable,
     isInitialized: privacyCashInitialized,
@@ -117,7 +119,7 @@ function VaultDetailContent() {
     
     try {
       const sig = await transferDomainToVault(vault.domain);
-      setSuccess(`Domain ownership transferred! Tx: ${sig.slice(0, 8)}...`);
+      setSuccess(`Domain ownership transferred! [TX:${sig}]`);
       await fetchVaults();
     } catch (err) {
       console.error('Transfer failed:', err);
@@ -137,7 +139,7 @@ function VaultDetailContent() {
     try {
       const destination = new PublicKey(reclaimDestination);
       const sig = await reclaimDomain(vault.domain, destination);
-      setSuccess(`Domain ownership reclaimed! Tx: ${sig.slice(0, 8)}...`);
+      setSuccess(`Domain ownership reclaimed! [TX:${sig}]`);
       setShowReclaimModal(false);
       setReclaimDestination('');
       await fetchVaults();
@@ -158,7 +160,7 @@ function VaultDetailContent() {
 
     try {
       const sig = await syncDomainTransferState(vault.domain);
-      setSuccess(`Domain state synced! Tx: ${sig.slice(0, 8)}...`);
+      setSuccess(`Domain state synced! [TX:${sig}]`);
       await fetchVaults();
     } catch (err) {
       console.error('Sync failed:', err);
@@ -177,7 +179,7 @@ function VaultDetailContent() {
 
     try {
       const sig = await closeVault(vault.domain);
-      setSuccess(`Vault closed successfully! Rent reclaimed. Tx: ${sig.slice(0, 8)}...`);
+      setSuccess(`Vault closed successfully! Rent reclaimed. [TX:${sig}]`);
       setShowCloseModal(false);
       router.push('/');
     } catch (err) {
@@ -217,7 +219,7 @@ function VaultDetailContent() {
 
     try {
       const sig = await claimVault(domain);
-      setSuccess(`Vault claimed successfully! Tx: ${sig.slice(0, 8)}...`);
+      setSuccess(`Vault claimed successfully! [TX:${sig}]`);
       setShowClaimConfirmModal(false);
       setUnclaimedVault(null);
     } catch (err) {
@@ -271,13 +273,11 @@ function VaultDetailContent() {
 
       console.log('[Vault] Privacy Cash withdrawal complete:', result.signature);
 
-      // Store the signature for the success message link
-      const txSignature = result.signature;
       const amountReceived = (result.amountReceived / LAMPORTS_PER_SOL).toFixed(4);
       const recipientShort = privacyCashWithdrawDestination.slice(0, 8);
 
       setSuccess(
-        `PRIVACY_WITHDRAWAL:${amountReceived}:${recipientShort}:${txSignature}`
+        `Privacy withdrawal complete! ${amountReceived} SOL sent to ${recipientShort}... [TX:${result.signature}]`
       );
 
       // Close modal and reset form
@@ -355,14 +355,14 @@ function VaultDetailContent() {
         await refreshDerivedKeyBalance();
 
         setSuccess(
-          `Privacy routing complete! Vault withdrawal: ${vaultSig.slice(0, 8)}... | ` +
-          `Pool deposit: ${depositResult.signature.slice(0, 8)}... (${(depositAmount / LAMPORTS_PER_SOL).toFixed(6)} SOL)`
+          `Privacy routing complete! Vault withdrawal: [TX:${vaultSig}] | ` +
+          `Pool deposit: [TX:${depositResult.signature}]`
         );
       } else {
         // Direct withdrawal (no privacy routing)
         const destination = new PublicKey(withdrawDestination);
         const sig = await withdrawDirect(vault.domain, destination, amountLamports);
-        setSuccess(`Withdrawal successful! Tx: ${sig.slice(0, 8)}...`);
+        setSuccess(`Withdrawal successful! [TX:${sig}]`);
       }
 
       setShowWithdrawModal(false);
@@ -615,26 +615,30 @@ function VaultDetailContent() {
             animate={{ opacity: 1, y: 0 }}
             className="mb-6 p-4 bg-hx-green/10 border border-hx-green/30 rounded-lg text-hx-green"
           >
-            {success.startsWith('PRIVACY_WITHDRAWAL:') ? (
-              (() => {
-                const [, amount, recipient, signature] = success.split(':');
-                return (
-                  <span>
-                    Privacy withdrawal complete! {amount} SOL sent to {recipient}... |{' '}
-                    <a
-                      href={`https://orbmarkets.io/tx/${signature}?tab=summary`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline hover:text-hx-white transition-colors"
-                    >
-                      Tx: {signature.slice(0, 8)}...
-                    </a>
-                  </span>
-                );
-              })()
-            ) : (
-              success
-            )}
+            {(() => {
+              // Parse [TX:signature] markers into clickable explorer links
+              const parts = success.split(/\[TX:([^\]]+)\]/g);
+              if (parts.length === 1) return success;
+              return (
+                <span>
+                  {parts.map((part, i) =>
+                    i % 2 === 0 ? (
+                      <span key={i}>{part}</span>
+                    ) : (
+                      <a
+                        key={i}
+                        href={getExplorerTxUrl(networkType, part)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline hover:text-hx-white transition-colors"
+                      >
+                        Tx: {part.slice(0, 8)}...
+                      </a>
+                    )
+                  )}
+                </span>
+              );
+            })()}
           </motion.div>
         )}
 

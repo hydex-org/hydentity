@@ -175,7 +175,7 @@ export function DevnetDomainRegistration({
                 Domain registered successfully!
               </p>
               <a
-                href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
+                href={`https://orbmarkets.io/tx/${txSignature}?cluster=devnet&tab=summary`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-hx-green/80 hover:text-hx-green underline break-all"

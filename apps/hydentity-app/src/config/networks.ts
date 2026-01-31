@@ -206,9 +206,8 @@ export function isFeatureEnabled(
  * Get explorer URL for a transaction
  */
 export function getExplorerTxUrl(network: NetworkType, signature: string): string {
-  const config = NETWORK_CONFIGS[network];
-  const clusterParam = network === 'devnet' ? '?cluster=devnet' : '';
-  return `${config.explorerUrl}/tx/${signature}${clusterParam}`;
+  const clusterParam = network === 'devnet' ? 'cluster=devnet&' : '';
+  return `https://orbmarkets.io/tx/${signature}?${clusterParam}tab=summary`;
 }
 
 /**

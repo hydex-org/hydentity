@@ -11,6 +11,8 @@ import { DevnetDomainRegistration } from '@/components/DevnetDomainRegistration'
 import { useHydentity } from '@/hooks/useHydentity';
 import { useSnsDomains, SnsDomain } from '@/hooks/useSnsDomains';
 import { useTestMode } from '@/contexts/TestModeContext';
+import { useNetworkType } from '@/contexts/NetworkContext';
+import { getExplorerTxUrl } from '@/config/networks';
 
 type SetupStep = 'domain' | 'destinations' | 'policy' | 'confirm' | 'processing' | 'complete';
 type PrivacyPreset = 'low' | 'medium' | 'high' | 'custom';
@@ -63,6 +65,7 @@ export default function SetupPage() {
   const { initializeVault } = useHydentity();
   const { domains, loading: domainsLoading, error: domainsError, verifyOwnership, refetch } = useSnsDomains();
   const { testMode, toggleTestMode } = useTestMode();
+  const networkType = useNetworkType();
 
   const [step, setStep] = useState<SetupStep>('domain');
   const [selectedDomain, setSelectedDomain] = useState<SnsDomain | null>(null);
@@ -900,7 +903,7 @@ export default function SetupPage() {
                 </p>
                 {txSignature && (
                   <a
-                    href={`https://www.orbmarkets.io/tx/${txSignature}?cluster=devnet&tab=summary`}
+                    href={getExplorerTxUrl(networkType, txSignature)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-hx-blue hover:underline"
