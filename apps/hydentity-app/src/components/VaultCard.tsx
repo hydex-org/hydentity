@@ -76,7 +76,7 @@ export function VaultCard({ vault, privateCashBalance }: VaultCardProps) {
       className="bg-hx-card-bg rounded-xl p-5 border border-hx-text/10 hover:border-hx-green/30 transition-all cursor-pointer group"
       whileHover={{ y: -2 }}
     >
-      <Link href={`/vault/${vault.domain}`}>
+      <Link href={`/vaults/${vault.domain}`}>
         <div className="flex items-start justify-between mb-4">
           <div>
             {isFallbackDomain ? (

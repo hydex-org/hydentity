@@ -392,7 +392,7 @@ function VaultDetailContent() {
     setShowDomainFixModal(false);
     setDomainInput('');
     // Navigate to the new domain page
-    router.push(`/vault/${domainInput.trim().toLowerCase().replace(/\.sol$/, '')}`);
+    router.push(`/vaults/${domainInput.trim().toLowerCase().replace(/\.sol$/, '')}`);
   };
 
   const formatSol = (lamports: bigint) => {

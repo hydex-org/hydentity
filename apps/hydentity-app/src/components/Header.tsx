@@ -33,6 +33,7 @@ export function Header() {
           <ClientOnly>
             {connected && (
               <>
+                <NavLink href="/vaults">Vaults</NavLink>
                 <NavLink href="/setup">Setup</NavLink>
                 <NavLink href="/claim">Claim</NavLink>
                 <NavLink href="/settings">Settings</NavLink>

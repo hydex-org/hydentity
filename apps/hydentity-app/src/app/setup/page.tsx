@@ -905,7 +905,7 @@ export default function SetupPage() {
                 </div>
                 <div className="mt-4 space-y-3">
                   <a
-                    href={`/vault/${getDomainName()}`}
+                    href={`/vaults/${getDomainName()}`}
                     className="block px-6 py-3 bg-hx-green text-hx-bg rounded-lg font-semibold hover:bg-[#a8f740] transition-all"
                   >
                     Transfer Domain to Vault
