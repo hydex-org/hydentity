@@ -36,6 +36,14 @@ export function Header() {
               <NavLink href="/setup">Setup</NavLink>
               <NavLink href="/claim">Claim</NavLink>
               <NavLink href="/settings">Settings</NavLink>
+              <a
+                href="https://hydex.gitbook.io/hydentity/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-hx-text hover:text-hx-white transition-colors"
+              >
+                Docs
+              </a>
             </nav>
           )}
         </ClientOnly>
