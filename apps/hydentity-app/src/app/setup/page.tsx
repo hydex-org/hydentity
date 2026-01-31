@@ -378,20 +378,6 @@ export default function SetupPage() {
               >
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-hx-white">Select Your Domain</h2>
-
-                  {/* Test Mode Toggle */}
-                  <button
-                    onClick={toggleTestMode}
-                    className={`
-                      flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all
-                      ${testMode
-                        ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                        : 'bg-hx-bg text-hx-text border border-hx-text/20 hover:border-hx-text/40'}
-                    `}
-                  >
-                    <div className={`w-3 h-3 rounded-full ${testMode ? 'bg-yellow-400' : 'bg-hx-text/30'}`} />
-                    Test Mode
-                  </button>
                 </div>
 
                 {/* Domain Selection */}
