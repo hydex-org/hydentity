@@ -29,24 +29,26 @@ export function Header() {
         </Link>
 
         {/* Navigation */}
-        <ClientOnly>
-          {connected && (
-            <nav className="hidden md:flex items-center gap-6">
-              <NavLink href="/" active>Dashboard</NavLink>
-              <NavLink href="/setup">Setup</NavLink>
-              <NavLink href="/claim">Claim</NavLink>
-              <NavLink href="/settings">Settings</NavLink>
-              <a
-                href="https://hydex.gitbook.io/hydentity/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-medium text-hx-text hover:text-hx-white transition-colors"
-              >
-                Docs
-              </a>
-            </nav>
-          )}
-        </ClientOnly>
+        <nav className="hidden md:flex items-center gap-6">
+          <ClientOnly>
+            {connected && (
+              <>
+                <NavLink href="/" active>Dashboard</NavLink>
+                <NavLink href="/setup">Setup</NavLink>
+                <NavLink href="/claim">Claim</NavLink>
+                <NavLink href="/settings">Settings</NavLink>
+              </>
+            )}
+          </ClientOnly>
+          <a
+            href="https://hydex.gitbook.io/hydentity/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-hx-text hover:text-hx-white transition-colors"
+          >
+            Docs
+          </a>
+        </nav>
 
         {/* Right section */}
         <div className="flex items-center gap-3">
