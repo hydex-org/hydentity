@@ -240,11 +240,30 @@ async function buildInitializeVaultInstruction(
 }
 
 /**
+ * Sign a transaction with the wallet, then send it via RPC.
+ * Uses signTransaction instead of sendTransaction (signAndSendTransaction)
+ * to avoid Phantom's "unable to predict transaction outcome" warning.
+ */
+async function signAndSend(
+  transaction: Transaction,
+  connection: Connection,
+  signTx: (tx: Transaction) => Promise<Transaction>,
+  options?: { skipPreflight?: boolean; preflightCommitment?: string; maxRetries?: number },
+): Promise<string> {
+  const signed = await signTx(transaction);
+  return connection.sendRawTransaction(signed.serialize(), {
+    skipPreflight: options?.skipPreflight ?? false,
+    preflightCommitment: (options?.preflightCommitment as any) ?? 'confirmed',
+    maxRetries: options?.maxRetries,
+  });
+}
+
+/**
  * Hook for interacting with Hydentity protocol
  */
 export function useHydentity() {
   const { connection } = useConnection();
-  const { publicKey, connected, sendTransaction } = useWallet();
+  const { publicKey, connected, signTransaction } = useWallet();
   const { testMode } = useTestMode();
   const { config, snsAdapter, network } = useNetwork();
 
@@ -589,7 +608,8 @@ export function useHydentity() {
       // Use skipPreflight since we already simulated, and specify commitment
       let signature: string;
       try {
-        signature = await sendTransaction(transaction, connection, {
+        if (!signTransaction) throw new Error('Wallet does not support transaction signing');
+        signature = await signAndSend(transaction, connection, signTransaction, {
           skipPreflight: true, // We already simulated successfully
           preflightCommitment: 'confirmed',
           maxRetries: 3,
@@ -641,7 +661,7 @@ export function useHydentity() {
       console.error('Failed to initialize vault:', error);
       throw error;
     }
-  }, [connected, publicKey, sendTransaction, connection, testMode, fetchVaults, programId, snsAdapter]);
+  }, [connected, publicKey, signTransaction, connection, testMode, fetchVaults, programId, snsAdapter]);
 
   /**
    * Get vault balance
@@ -808,7 +828,11 @@ export function useHydentity() {
       console.log('Simulation successful:', simulation.value.logs);
 
       // Send transaction
-      const signature = await sendTransaction(transaction, connection);
+      if (!signTransaction) throw new Error('Wallet does not support transaction signing');
+      const signature = await signAndSend(transaction, connection, signTransaction, {
+        skipPreflight: true,
+        preflightCommitment: 'confirmed',
+      });
 
       await pollForConfirmation(connection, signature, lastValidBlockHeight);
 
@@ -822,7 +846,7 @@ export function useHydentity() {
       console.error('Failed to withdraw:', error);
       throw error;
     }
-  }, [connected, publicKey, sendTransaction, connection, testMode, fetchVaults, programId, snsAdapter]);
+  }, [connected, publicKey, signTransaction, connection, testMode, fetchVaults, programId, snsAdapter]);
 
   /**
    * Build SNS transfer instruction manually
@@ -913,7 +937,11 @@ export function useHydentity() {
 
       // Send the transfer transaction
       console.log('Sending domain transfer transaction...');
-      const transferSig = await sendTransaction(transaction, connection);
+      if (!signTransaction) throw new Error('Wallet does not support transaction signing');
+      const transferSig = await signAndSend(transaction, connection, signTransaction, {
+        skipPreflight: true,
+        preflightCommitment: 'confirmed',
+      });
 
       // Wait for confirmation (polling to avoid WebSocket issues)
       await pollForConfirmation(connection, transferSig, lastValidBlockHeight);
@@ -939,7 +967,7 @@ export function useHydentity() {
       console.error('Failed to transfer domain to vault:', error);
       throw error;
     }
-  }, [connected, publicKey, sendTransaction, connection, fetchVaults, buildSnsTransferInstruction, snsAdapter, programId]);
+  }, [connected, publicKey, signTransaction, connection, fetchVaults, buildSnsTransferInstruction, snsAdapter, programId]);
 
   /**
    * Call the mark_domain_transferred instruction to verify and update vault state
@@ -986,7 +1014,8 @@ export function useHydentity() {
       }
       console.log('Simulation successful:', simulation.value.logs);
 
-      const signature = await sendTransaction(transaction, connection, {
+      if (!signTransaction) throw new Error('Wallet does not support transaction signing');
+      const signature = await signAndSend(transaction, connection, signTransaction, {
         skipPreflight: true,
         preflightCommitment: 'confirmed',
       });
@@ -999,7 +1028,7 @@ export function useHydentity() {
       console.error('Failed to mark domain as transferred:', error);
       throw error;
     }
-  }, [connected, publicKey, sendTransaction, connection, programId]);
+  }, [connected, publicKey, signTransaction, connection, programId]);
 
   /**
    * Reclaim domain ownership from the vault
@@ -1065,7 +1094,11 @@ export function useHydentity() {
         throw new Error(`Reclaim simulation failed: ${JSON.stringify(simulation.value.err)}`);
       }
 
-      const signature = await sendTransaction(transaction, connection);
+      if (!signTransaction) throw new Error('Wallet does not support transaction signing');
+      const signature = await signAndSend(transaction, connection, signTransaction, {
+        skipPreflight: true,
+        preflightCommitment: 'confirmed',
+      });
 
       await pollForConfirmation(connection, signature, lastValidBlockHeight);
 
@@ -1079,7 +1112,7 @@ export function useHydentity() {
       console.error('Failed to reclaim domain:', error);
       throw error;
     }
-  }, [connected, publicKey, sendTransaction, connection, fetchVaults, snsAdapter, programId]);
+  }, [connected, publicKey, signTransaction, connection, fetchVaults, snsAdapter, programId]);
 
   /**
    * Get PDA addresses for a domain (useful for debugging)
@@ -1382,7 +1415,8 @@ export function useHydentity() {
       }
       console.log('Simulation successful:', simulation.value.logs);
 
-      const signature = await sendTransaction(transaction, connection, {
+      if (!signTransaction) throw new Error('Wallet does not support transaction signing');
+      const signature = await signAndSend(transaction, connection, signTransaction, {
         skipPreflight: true,
         preflightCommitment: 'confirmed',
       });
@@ -1398,7 +1432,7 @@ export function useHydentity() {
       console.error('Failed to close vault:', error);
       throw error;
     }
-  }, [connected, publicKey, sendTransaction, connection, testMode, fetchVaults, programId, snsAdapter]);
+  }, [connected, publicKey, signTransaction, connection, testMode, fetchVaults, programId, snsAdapter]);
 
   /**
    * Claim a vault as the new domain owner
@@ -1455,7 +1489,8 @@ export function useHydentity() {
       }
       console.log('Simulation successful:', simulation.value.logs);
 
-      const signature = await sendTransaction(transaction, connection, {
+      if (!signTransaction) throw new Error('Wallet does not support transaction signing');
+      const signature = await signAndSend(transaction, connection, signTransaction, {
         skipPreflight: true,
         preflightCommitment: 'confirmed',
       });
@@ -1471,7 +1506,7 @@ export function useHydentity() {
       console.error('Failed to claim vault:', error);
       throw error;
     }
-  }, [connected, publicKey, sendTransaction, connection, testMode, fetchVaults, programId, snsAdapter]);
+  }, [connected, publicKey, signTransaction, connection, testMode, fetchVaults, programId, snsAdapter]);
 
   return {
     // State

@@ -394,9 +394,26 @@ async function extractNameAccountFromTransaction(
  * Hook for registering SNS domains on devnet
  * This is useful for hackathon demos where devnet SNS tools aren't well supported
  */
+/**
+ * Sign a transaction with the wallet, then send it via RPC.
+ * Uses signTransaction instead of sendTransaction (signAndSendTransaction)
+ * to avoid Phantom's "unable to predict transaction outcome" warning.
+ */
+async function signAndSend(
+  transaction: Transaction,
+  connection: Connection,
+  signTx: (tx: Transaction) => Promise<Transaction>,
+): Promise<string> {
+  const signed = await signTx(transaction);
+  return connection.sendRawTransaction(signed.serialize(), {
+    skipPreflight: false,
+    preflightCommitment: 'confirmed',
+  });
+}
+
 export function useDevnetDomainRegistration() {
   const { connection } = useConnection();
-  const { publicKey, sendTransaction } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
 
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -414,7 +431,7 @@ export function useDevnetDomainRegistration() {
       wrapSol: number = 0.05,
       space: number = 1000
     ): Promise<string> => {
-      if (!publicKey || !sendTransaction) {
+      if (!publicKey || !signTransaction) {
         throw new Error('Wallet not connected');
       }
 
@@ -510,8 +527,8 @@ export function useDevnetDomainRegistration() {
           throw simError;
         }
 
-        // Send transaction (wallet adapter handles signing)
-        const signature = await sendTransaction(transaction, connection);
+        // Sign then send (avoids Phantom's signAndSendTransaction warning)
+        const signature = await signAndSend(transaction, connection, signTransaction);
 
         console.log('Domain registration transaction sent:', signature);
         setTxSignature(signature);
@@ -573,7 +590,7 @@ export function useDevnetDomainRegistration() {
         setIsRegistering(false);
       }
     },
-    [publicKey, sendTransaction, connection]
+    [publicKey, signTransaction, connection]
   );
 
   const reset = useCallback(() => {

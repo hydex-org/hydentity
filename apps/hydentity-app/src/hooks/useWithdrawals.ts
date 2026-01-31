@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { PublicKey, Transaction, TransactionInstruction, SystemProgram } from '@solana/web3.js';
+import { PublicKey, Connection, Transaction, TransactionInstruction, SystemProgram } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 import { pollForConfirmation } from '@/lib/pollForConfirmation';
 
@@ -150,9 +150,26 @@ const PRESET_DELAY_RANGES = {
 /**
  * Hook for managing private withdrawals
  */
+/**
+ * Sign a transaction with the wallet, then send it via RPC.
+ * Uses signTransaction instead of sendTransaction (signAndSendTransaction)
+ * to avoid Phantom's "unable to predict transaction outcome" warning.
+ */
+async function signAndSend(
+  transaction: Transaction,
+  connection: Connection,
+  signTx: (tx: Transaction) => Promise<Transaction>,
+): Promise<string> {
+  const signed = await signTx(transaction);
+  return connection.sendRawTransaction(signed.serialize(), {
+    skipPreflight: false,
+    preflightCommitment: 'confirmed',
+  });
+}
+
 export function useWithdrawals(): UseWithdrawalsReturn {
   const { connection } = useConnection();
-  const { publicKey, signTransaction, sendTransaction } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -410,7 +427,8 @@ export function useWithdrawals(): UseWithdrawalsReturn {
       }
 
       // Send transaction
-      const signature = await sendTransaction(transaction, connection);
+      if (!signTransaction) throw new Error('Wallet does not support transaction signing');
+      const signature = await signAndSend(transaction, connection, signTransaction);
       console.log('Transaction sent:', signature);
 
       // Wait for confirmation (polling to avoid WebSocket issues)
@@ -464,7 +482,7 @@ export function useWithdrawals(): UseWithdrawalsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [publicKey, signTransaction, connection, sendTransaction]);
+  }, [publicKey, signTransaction, connection]);
 
   /**
    * Cancel a pending withdrawal
