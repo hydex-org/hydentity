@@ -11,7 +11,7 @@ export function Header() {
   const { connected } = useWallet();
 
   return (
-    <motion.header 
+    <motion.header
       className="sticky top-0 z-50 bg-hx-bg/80 backdrop-blur-md border-b border-hx-text/10"
       initial={{ y: -100 }}
       animate={{ y: 0 }}
@@ -33,7 +33,6 @@ export function Header() {
           <ClientOnly>
             {connected && (
               <>
-                <NavLink href="/" active>Dashboard</NavLink>
                 <NavLink href="/setup">Setup</NavLink>
                 <NavLink href="/claim">Claim</NavLink>
                 <NavLink href="/settings">Settings</NavLink>
@@ -75,7 +74,7 @@ export function Header() {
 
 function NavLink({ href, children, active }: { href: string; children: React.ReactNode; active?: boolean }) {
   return (
-    <Link 
+    <Link
       href={href}
       className={`text-sm font-medium transition-colors ${
         active ? 'text-hx-white' : 'text-hx-text hover:text-hx-white'
