@@ -394,26 +394,9 @@ async function extractNameAccountFromTransaction(
  * Hook for registering SNS domains on devnet
  * This is useful for hackathon demos where devnet SNS tools aren't well supported
  */
-/**
- * Sign a transaction with the wallet, then send it via RPC.
- * Uses signTransaction instead of sendTransaction (signAndSendTransaction)
- * to avoid Phantom's "unable to predict transaction outcome" warning.
- */
-async function signAndSend(
-  transaction: Transaction,
-  connection: Connection,
-  signTx: (tx: Transaction) => Promise<Transaction>,
-): Promise<string> {
-  const signed = await signTx(transaction);
-  return connection.sendRawTransaction(signed.serialize(), {
-    skipPreflight: false,
-    preflightCommitment: 'confirmed',
-  });
-}
-
 export function useDevnetDomainRegistration() {
   const { connection } = useConnection();
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey, sendTransaction } = useWallet();
 
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -431,7 +414,7 @@ export function useDevnetDomainRegistration() {
       wrapSol: number = 0.05,
       space: number = 1000
     ): Promise<string> => {
-      if (!publicKey || !signTransaction) {
+      if (!publicKey || !sendTransaction) {
         throw new Error('Wallet not connected');
       }
 
@@ -452,6 +435,24 @@ export function useDevnetDomainRegistration() {
       setTxSignature(null);
 
       try {
+        // Check if the domain already exists on-chain before attempting registration
+        try {
+          const { pubkey: existingKey } = getDomainKeySync(domainLabel.trim());
+          const existingAccount = await connection.getAccountInfo(existingKey);
+          if (existingAccount) {
+            throw new Error(
+              `The domain "${domainLabel.trim()}.sol" is already registered on devnet. Please choose a different name.`
+            );
+          }
+        } catch (checkError) {
+          // Re-throw our own "already registered" error
+          if (checkError instanceof Error && checkError.message.includes('already registered')) {
+            throw checkError;
+          }
+          // Ignore derivation errors (getDomainKeySync may fail for some inputs) —
+          // let the registration attempt proceed and fail naturally if needed
+        }
+
         // Derive wSOL Associated Token Account
         const wsolAta = getAssociatedTokenAddressSync(
           NATIVE_MINT,
@@ -507,28 +508,14 @@ export function useDevnetDomainRegistration() {
         transaction.lastValidBlockHeight = lastValidBlockHeight;
         transaction.feePayer = publicKey;
 
-        // Simulate transaction for better error messages
-        console.log('Simulating domain registration transaction...');
-        try {
-          const simulation = await connection.simulateTransaction(transaction);
-          if (simulation.value.err) {
-            console.error('Simulation error:', simulation.value.err);
-            console.error('Simulation logs:', simulation.value.logs);
-            throw new Error(
-              `Transaction simulation failed: ${JSON.stringify(
-                simulation.value.err
-              )}\n` +
-                `Logs: ${simulation.value.logs?.join('\n') || 'No logs'}`
-            );
-          }
-          console.log('Simulation successful:', simulation.value.logs);
-        } catch (simError) {
-          console.error('Simulation failed:', simError);
-          throw simError;
-        }
-
-        // Sign then send (avoids Phantom's signAndSendTransaction warning)
-        const signature = await signAndSend(transaction, connection, signTransaction);
+        // Use sendTransaction (wallet's signAndSendTransaction) instead of
+        // signTransaction + sendRawTransaction. The latter causes Phantom mobile
+        // to show "Unexpected Error" during its internal simulation of complex
+        // multi-instruction transactions like SNS domain registration.
+        const signature = await sendTransaction(transaction, connection, {
+          skipPreflight: false,
+          preflightCommitment: 'confirmed',
+        });
 
         console.log('Domain registration transaction sent:', signature);
         setTxSignature(signature);
@@ -590,7 +577,7 @@ export function useDevnetDomainRegistration() {
         setIsRegistering(false);
       }
     },
-    [publicKey, signTransaction, connection]
+    [publicKey, sendTransaction, connection]
   );
 
   const reset = useCallback(() => {
