@@ -527,19 +527,6 @@ export function usePrivacyCash(): UsePrivacyCashReturn {
     }
   }, [derivedSecretKey, derivedPublicKey, refreshDerivedKeyBalance]);
 
-  // Expose recovery function to window for console access (temporary debug helper)
-  useEffect(() => {
-    if (isInitialized && derivedSecretKey) {
-      (window as any).__recoverPrivacyCash = async (lamports: number, recipient: string) => {
-        return recoverFromDerivedKey(lamports, recipient);
-      };
-      console.log('[usePrivacyCash] Recovery function exposed. Use: window.__recoverPrivacyCash(lamports, recipient)');
-    }
-    return () => {
-      delete (window as any).__recoverPrivacyCash;
-    };
-  }, [isInitialized, derivedSecretKey, recoverFromDerivedKey]);
-
   return {
     isAvailable,
     isInitialized,
