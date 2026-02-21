@@ -42,7 +42,7 @@ export const NETWORK_CONFIGS: Record<NetworkType, NetworkConfig> = {
     displayName: 'Devnet',
     rpcEndpoint: 'https://api.devnet.solana.com',
     wsEndpoint: process.env.NEXT_PUBLIC_DEVNET_WS || 'wss://api.devnet.solana.com',
-    routerProgramId: 'GjsWbz3UbnNDpxhteaZsobibXDiwmDbGmtifXymvRYz1',
+    routerProgramId: 'Ahv2WkLC4pe3hWcuZcbhG68akptyUvwPueDbBxLFUK1n',
     features: {
       domainTransfer: true,
       mpcDestination: true,
@@ -54,7 +54,7 @@ export const NETWORK_CONFIGS: Record<NetworkType, NetworkConfig> = {
     displayName: 'Mainnet',
     rpcEndpoint: 'https://api.mainnet-beta.solana.com',
     wsEndpoint: process.env.NEXT_PUBLIC_MAINNET_WS || 'wss://api.mainnet-beta.solana.com',
-    routerProgramId: 'GjsWbz3UbnNDpxhteaZsobibXDiwmDbGmtifXymvRYz1',
+    routerProgramId: 'Ahv2WkLC4pe3hWcuZcbhG68akptyUvwPueDbBxLFUK1n',
     features: {
       domainTransfer: true,
       mpcDestination: false, // Arcium not on mainnet yet
