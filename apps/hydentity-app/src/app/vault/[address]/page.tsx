@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { PublicKey } from '@solana/web3.js';
 import { useParams } from 'next/navigation';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
@@ -54,7 +54,7 @@ export default function VaultDetailPage() {
   } | null>(null);
   const [mpcLoading, setMpcLoading] = useState(false);
 
-  const programId = new PublicKey(config.routerProgramId);
+  const programId = useMemo(() => new PublicKey(config.routerProgramId), [config.routerProgramId]);
 
   const fetchVault = useCallback(async () => {
     try {
