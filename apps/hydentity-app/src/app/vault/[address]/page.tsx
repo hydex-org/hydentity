@@ -53,6 +53,7 @@ export default function VaultDetailPage() {
     remainingBondK: bigint;
   } | null>(null);
   const [mpcLoading, setMpcLoading] = useState(false);
+  const [vaultSolBalance, setVaultSolBalance] = useState<number | null>(null);
 
   const programId = useMemo(() => new PublicKey(config.routerProgramId), [config.routerProgramId]);
 
@@ -63,6 +64,11 @@ export default function VaultDetailPage() {
       const vaultPubkey = new PublicKey(address);
       const fetchedVault = await Vault.fetchVault(vaultPubkey, connection);
       setVault(fetchedVault);
+
+      // Fetch vault authority SOL balance (actual deposited SOL pre-sweep)
+      const authority = deriveVaultAuthorityAccount(programId, vaultPubkey);
+      const lamports = await connection.getBalance(authority);
+      setVaultSolBalance(lamports);
 
       // Fetch the associated pool
       for (const mint of SUPPORTED_MINTS) {
@@ -210,12 +216,23 @@ export default function VaultDetailPage() {
                 </div>
               )}
 
-              {/* Balance Panel */}
+              {/* Vault Balance */}
               <div className="bg-hx-card-bg rounded-xl p-5 border border-hx-text/10">
-                <h2 className="text-sm font-medium text-hx-text mb-4">Balances</h2>
+                <h2 className="text-sm font-medium text-hx-text mb-4">Vault Balance</h2>
+                <p className="text-2xl font-bold text-hx-white">
+                  {vaultSolBalance !== null ? formatSol(vaultSolBalance) : '...'}
+                </p>
+                <p className="text-xs text-hx-text mt-1">
+                  SOL held by vault authority (swept into pool each interval)
+                </p>
+              </div>
+
+              {/* Pool Balance */}
+              <div className="bg-hx-card-bg rounded-xl p-5 border border-hx-text/10">
+                <h2 className="text-sm font-medium text-hx-text mb-4">Pool Balance</h2>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-hx-text uppercase tracking-wider mb-1">Total Balance</p>
+                    <p className="text-xs text-hx-text uppercase tracking-wider mb-1">Total</p>
                     <p className="text-xl font-bold text-hx-white">
                       {pool ? formatVaultBalance(vault.balanceK, pool.dBase, pool.assetMint) : `${vault.balanceK.toString()} k-units`}
                     </p>
