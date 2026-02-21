@@ -17,7 +17,7 @@ export function Header() {
       animate={{ y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="container mx-auto px-4 py-3 flex items-center justify-between justify-right">
+      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <svg className="w-8 h-8" viewBox="0 0 32 32" fill="none">
@@ -33,10 +33,8 @@ export function Header() {
           <ClientOnly>
             {connected && (
               <>
-                <NavLink href="/vaults">Vaults</NavLink>
-                <NavLink href="/setup">Setup</NavLink>
-                <NavLink href="/claim">Claim</NavLink>
-                <NavLink href="/settings">Settings</NavLink>
+                <NavLink href="/">Dashboard</NavLink>
+                <NavLink href="/vault/new">Create Vault</NavLink>
               </>
             )}
           </ClientOnly>
@@ -52,12 +50,10 @@ export function Header() {
 
         {/* Right section */}
         <div className="flex items-center gap-3">
-          {/* Network Switcher */}
           <ClientOnly>
             <NetworkSwitcher />
           </ClientOnly>
 
-          {/* Hyde XP Badge */}
           <div className="hidden sm:flex items-center gap-1 px-3 py-1.5 bg-hx-card-bg rounded-lg border border-hx-text/10">
             <span className="text-hx-green font-semibold text-sm">HYDE</span>
             <span className="text-hx-green font-bold">XP</span>
@@ -73,13 +69,11 @@ export function Header() {
   );
 }
 
-function NavLink({ href, children, active }: { href: string; children: React.ReactNode; active?: boolean }) {
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link
       href={href}
-      className={`text-sm font-medium transition-colors ${
-        active ? 'text-hx-white' : 'text-hx-text hover:text-hx-white'
-      }`}
+      className="text-sm font-medium text-hx-text hover:text-hx-white transition-colors"
     >
       {children}
     </Link>

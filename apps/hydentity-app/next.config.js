@@ -2,24 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
 
-  // Use standalone output to include all files (not serverless)
-  // This fixes the circuit file loading issue on Vercel
-  output: 'standalone',
-
-  experimental: {
-    instrumentationHook: true,
-    // Exclude packages with native/WASM dependencies from bundling
-    serverComponentsExternalPackages: [
-      'privacycash',
-      '@lightprotocol/hasher.rs',
-    ],
-  },
-
-  // Include circuit files in serverless function bundles
-  // These are copied from node_modules during prebuild
-  outputFileTracingIncludes: {
-    '/api/privacy-cash/*': ['./circuit2/**/*'],
-  },
+  transpilePackages: ['sdk'],
 
   webpack: (config, { isServer }) => {
     // Handle node modules that don't work in browser
@@ -31,7 +14,7 @@ const nextConfig = {
       crypto: false,
     };
 
-    // Enable WASM support
+    // Enable WASM support (needed by Arcium/anchor)
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,

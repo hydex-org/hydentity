@@ -1,326 +1,124 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import Link from 'next/link';
+import { useRouter as useNextRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import type { VaultInfo } from '@/hooks/useHydentity';
-import { useHydentity } from '@/hooks/useHydentity';
+import type { Vault } from 'sdk/src/accounts/vault';
+import type { Pool } from 'sdk/src/accounts/pool';
+import { deriveVaultAuthorityAccount } from 'sdk/src/utils/pda';
+import { formatVaultBalance, modeLabel, truncateAddress } from '@/utils/format';
 
 interface VaultCardProps {
-  vault: VaultInfo;
-  privateCashBalance?: number | null; // Privacy Cash pool balance in SOL
+  vault: Vault;
+  pool?: Pool;
+  programId: import('@solana/web3.js').PublicKey;
 }
 
-export function VaultCard({ vault, privateCashBalance }: VaultCardProps) {
-  const { registerDomainForVault, closeVault, fetchVaults } = useHydentity();
-  const [showDomainInput, setShowDomainInput] = useState(false);
-  const [domainInput, setDomainInput] = useState('');
+export function VaultCard({ vault, pool, programId }: VaultCardProps) {
+  const router = useNextRouter();
   const [copied, setCopied] = useState(false);
-  const [showCloseModal, setShowCloseModal] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
-  const [closeError, setCloseError] = useState<string | null>(null);
 
-  const formatSol = (lamports: bigint) => {
-    return (Number(lamports) / 1e9).toFixed(4);
-  };
+  const vaultAuthority = deriveVaultAuthorityAccount(programId, vault.pubkey);
+  const vaultAddress = vault.pubkey.toBase58();
+  const authorityAddress = vaultAuthority.toBase58();
+  const dBase = pool?.dBase ?? vault.pool?.dBase;
 
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 4)}...${address.slice(-4)}`;
-  };
-
-  // Copy vault authority address to clipboard (this is where funds are sent)
   const handleCopyAddress = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
     try {
-      await navigator.clipboard.writeText(vault.vaultAuthorityAddress);
+      await navigator.clipboard.writeText(authorityAddress);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy address:', err);
     }
-  }, [vault.vaultAuthorityAddress]);
+  }, [authorityAddress]);
 
-  // Check if this is a fallback domain name
-  const isFallbackDomain = vault.domain.startsWith('vault-');
-
-  const handleRegisterDomain = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (domainInput.trim()) {
-      registerDomainForVault(vault.snsNameAccount, domainInput.trim());
-      setShowDomainInput(false);
-      setDomainInput('');
-    }
-  };
-
-  const handleCloseVault = async () => {
-    setIsClosing(true);
-    setCloseError(null);
-
-    try {
-      await closeVault(vault.domain);
-      setShowCloseModal(false);
-      await fetchVaults();
-    } catch (err) {
-      console.error('Close vault failed:', err);
-      setCloseError(err instanceof Error ? err.message : 'Failed to close vault');
-    } finally {
-      setIsClosing(false);
-    }
+  const handleClick = () => {
+    router.push(`/vault/${vaultAddress}`);
   };
 
   return (
     <motion.div
       className="bg-hx-card-bg rounded-xl p-5 border border-hx-text/10 hover:border-hx-green/30 transition-all cursor-pointer group"
       whileHover={{ y: -2 }}
+      onClick={handleClick}
     >
-      <Link href={`/vaults/${vault.domain}`}>
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            {isFallbackDomain ? (
-              <>
-                <h3 className="text-lg font-semibold text-yellow-400">
-                  Unknown Domain
-                </h3>
-                <button
-                  onClick={handleCopyAddress}
-                  className="text-xs text-hx-text font-mono hover:text-hx-green transition-colors flex items-center gap-1"
-                  title="Click to copy receiving address"
-                >
-                  SNS: {formatAddress(vault.vaultAuthorityAddress)}
-                  {copied ? (
-                    <span className="text-hx-green text-[10px]">Copied!</span>
-                  ) : (
-                    <span className="text-[10px] opacity-50">📋</span>
-                  )}
-                </button>
-              </>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold text-hx-white group-hover:text-hx-green transition-colors font-mono">
+            {truncateAddress(vaultAddress, 6)}
+          </h3>
+          <button
+            onClick={handleCopyAddress}
+            className="text-xs text-hx-text font-mono hover:text-hx-green transition-colors flex items-center gap-1"
+            title="Copy deposit address (vault authority)"
+          >
+            Deposit: {truncateAddress(authorityAddress)}
+            {copied ? (
+              <span className="text-hx-green text-[10px]">Copied!</span>
             ) : (
-              <>
-                <h3 className="text-lg font-semibold text-hx-white group-hover:text-hx-green transition-colors">
-                  {vault.domain}<span className="text-hx-green">.sol</span>
-                </h3>
-                <button
-                  onClick={handleCopyAddress}
-                  className="text-xs text-hx-text font-mono hover:text-hx-green transition-colors flex items-center gap-1"
-                  title="Click to copy receiving address"
-                >
-                  {formatAddress(vault.vaultAuthorityAddress)}
-                  {copied ? (
-                    <span className="text-hx-green text-[10px]">Copied!</span>
-                  ) : (
-                    <span className="text-[10px] opacity-50">📋</span>
-                  )}
-                </button>
-              </>
+              <span className="text-[10px] opacity-50">Copy</span>
             )}
-          </div>
-          
-          {/* Status indicators */}
-          <div className="flex flex-col gap-1 items-end">
-            <div className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-              vault.policyEnabled 
-                ? 'bg-hx-green/10 text-hx-green' 
-                : 'bg-yellow-500/10 text-yellow-400'
-            }`}>
-              {vault.policyEnabled ? 'Active' : 'Paused'}
-            </div>
-            
-            {/* Domain ownership indicator */}
-            <div className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-              vault.domainTransferred 
-                ? 'bg-hx-blue/10 text-hx-blue' 
-                : 'bg-orange-500/10 text-orange-400'
-            }`} title={vault.domainTransferred 
-              ? 'Domain owned by vault (enhanced privacy)' 
-              : 'Domain owned externally'
-            }>
-              {vault.domainTransferred ? '🔒 Private' : '⚠️ External'}
-            </div>
-          </div>
+          </button>
         </div>
 
-        {/* Balances */}
-        <div className="mb-4 space-y-2">
-          {/* Vault Balance */}
-          <div>
-            <p className="text-xs text-hx-text uppercase tracking-wider mb-0.5">Vault Balance</p>
-            <p className="text-2xl font-bold text-hx-white">
-              {formatSol(vault.balance)}
-              <span className="text-sm text-hx-text ml-2">SOL</span>
-            </p>
-            {vault.pendingDeposits > 0 && (
-              <p className="text-xs text-hx-green">
-                +{vault.pendingDeposits} pending deposits
-              </p>
-            )}
+        {/* Status badges */}
+        <div className="flex flex-col gap-1 items-end">
+          <div className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+            vault.isFrozen
+              ? 'bg-blue-500/10 text-blue-400'
+              : 'bg-hx-green/10 text-hx-green'
+          }`}>
+            {vault.isFrozen ? 'Frozen' : 'Active'}
           </div>
-
-          {/* Privacy Cash Balance */}
-          {privateCashBalance !== undefined && privateCashBalance !== null && (
-            <div className="pt-2 border-t border-hx-text/10">
-              <p className="text-xs text-hx-text uppercase tracking-wider mb-0.5">Private Balance</p>
-              <p className="text-lg font-semibold text-hx-purple">
-                {privateCashBalance.toFixed(4)}
-                <span className="text-sm text-hx-text ml-2">SOL</span>
-              </p>
+          {vault.egressInitialized && (
+            <div className="px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-400">
+              Egress
+            </div>
+          )}
+          {vault.domainTransferred && (
+            <div className="px-2.5 py-1 rounded-full text-xs font-medium bg-hx-blue/10 text-hx-blue">
+              SNS Linked
             </div>
           )}
         </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 pt-4 border-t border-hx-text/10">
-          <Stat label="Received" value={vault.totalDeposits.toString()} />
-          <Stat label="Claim Splits" value={`${vault.minSplits}-${vault.maxSplits}`} />
-          <Stat label="Max Delay" value={`${vault.maxDelaySeconds / 60}m`} />
-        </div>
-      </Link>
-
-      {/* Close Vault button */}
-      <div className="mt-4 pt-4 border-t border-hx-text/10 flex justify-end">
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setShowCloseModal(true);
-          }}
-          className="px-3 py-1.5 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded hover:bg-red-500/20 transition-colors"
-        >
-          Close Vault
-        </button>
       </div>
 
-      {/* Close Vault Modal */}
-      {showCloseModal && (
-        <div
-          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-hx-bg rounded-xl p-6 max-w-md w-full border border-red-500/30 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-xl font-semibold text-red-400 mb-4">
-              Close Vault
-            </h3>
-
-            <p className="text-hx-text text-sm mb-4">
-              This will close all vault PDAs (vault, vault authority, and policy) and return the rent-exempt SOL to your wallet.
+      {/* Balances */}
+      <div className="mb-4 space-y-2">
+        <div>
+          <p className="text-xs text-hx-text uppercase tracking-wider mb-0.5">Balance</p>
+          <p className="text-2xl font-bold text-hx-white">
+            {dBase ? formatVaultBalance(vault.balanceK, dBase, pool?.assetMint) : `${vault.balanceK.toString()}k`}
+          </p>
+        </div>
+        {vault.eligibleK.gtn(0) && (
+          <div>
+            <p className="text-xs text-hx-text uppercase tracking-wider mb-0.5">Eligible</p>
+            <p className="text-lg font-semibold text-hx-green">
+              {dBase ? formatVaultBalance(vault.eligibleK, dBase, pool?.assetMint) : `${vault.eligibleK.toString()}k`}
             </p>
-
-            {vault.balance > 0n && (
-              <div className="p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20 mb-4">
-                <p className="text-xs text-yellow-400">
-                  <strong>Note:</strong> The vault authority still holds {(Number(vault.balance) / 1e9).toFixed(4)} SOL.
-                  This balance will be returned along with rent when the vault is closed.
-                </p>
-              </div>
-            )}
-
-            {vault.domainTransferred && (
-              <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20 mb-4">
-                <p className="text-xs text-red-400">
-                  <strong>Warning:</strong> The domain is still transferred to the vault authority.
-                  Please reclaim your domain before closing the vault.
-                </p>
-              </div>
-            )}
-
-            <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20 mb-6">
-              <p className="text-xs text-red-400">
-                <strong>This action is irreversible.</strong> You will need to create a new vault if you want to use Hydentity for this domain again.
-              </p>
-            </div>
-
-            {closeError && (
-              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
-                {closeError}
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowCloseModal(false);
-                  setCloseError(null);
-                }}
-                className="flex-1 px-4 py-2.5 bg-hx-bg border border-hx-text/20 text-hx-text rounded-lg hover:bg-hx-text/5 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleCloseVault();
-                }}
-                disabled={isClosing || vault.domainTransferred}
-                className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isClosing ? 'Closing...' : 'Close Vault'}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Fallback domain warning and fix UI */}
-      {isFallbackDomain && (
-        <div className="mt-4 pt-4 border-t border-yellow-500/20">
-          <div className="flex items-center gap-2 text-yellow-400 text-xs mb-2">
-            <span>⚠️</span>
-            <span>Domain name not recognized. Enter it manually:</span>
           </div>
-          {showDomainInput ? (
-            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="text"
-                value={domainInput}
-                onChange={(e) => setDomainInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                placeholder="mydomain"
-                className="flex-1 px-3 py-1.5 bg-hx-bg border border-hx-text/20 rounded text-sm text-hx-white focus:outline-none focus:border-hx-green"
-                onClick={(e) => e.stopPropagation()}
-              />
-              <button
-                onClick={handleRegisterDomain}
-                className="px-3 py-1.5 bg-hx-green text-hx-bg rounded text-sm font-medium hover:bg-hx-green/90"
-              >
-                Save
-              </button>
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowDomainInput(false);
-                }}
-                className="px-3 py-1.5 bg-hx-bg border border-hx-text/20 text-hx-text rounded text-sm hover:bg-hx-text/5"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowDomainInput(true);
-              }}
-              className="px-3 py-1.5 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded text-xs font-medium hover:bg-yellow-500/20 transition-colors"
-            >
-              Set Domain Name
-            </button>
-          )}
-        </div>
-      )}
+        )}
+        {vault.pendingDepositCount > 0 && (
+          <p className="text-xs text-yellow-400">
+            +{vault.pendingDepositCount} pending deposit{vault.pendingDepositCount > 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4 pt-4 border-t border-hx-text/10">
+        <Stat label="Mode" value={modeLabel(vault.mode)} />
+        <Stat label="Nonce" value={vault.nonce.toString()} />
+        <Stat label="Bond" value={vault.totalBondAllocatedK.gtn(0)
+          ? (dBase ? formatVaultBalance(vault.totalBondAllocatedK, dBase, pool?.assetMint) : `${vault.totalBondAllocatedK.toString()}k`)
+          : '0'
+        } />
+      </div>
     </motion.div>
   );
 }

@@ -16,7 +16,6 @@ export function NetworkSwitcher() {
 
   const currentNetwork = NETWORK_OPTIONS.find((n) => n.value === network) || NETWORK_OPTIONS[0];
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -100,19 +99,14 @@ export function NetworkSwitcher() {
               Features on {currentNetwork.label}
             </p>
             <div className="flex flex-wrap gap-1 px-2">
-              {config.features.mpcWithdrawals && (
+              {config.features.mpcDestination && (
                 <span className="px-1.5 py-0.5 bg-hx-blue/10 text-hx-blue text-[9px] rounded">
                   MPC
                 </span>
               )}
-              {config.features.privacyCashRouting && (
-                <span className="px-1.5 py-0.5 bg-hx-purple/10 text-hx-purple text-[9px] rounded">
-                  Privacy Cash
-                </span>
-              )}
-              {config.features.directWithdrawals && (
+              {config.features.domainTransfer && (
                 <span className="px-1.5 py-0.5 bg-hx-green/10 text-hx-green text-[9px] rounded">
-                  Direct
+                  Domain Transfer
                 </span>
               )}
             </div>
