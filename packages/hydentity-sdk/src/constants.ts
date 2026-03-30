@@ -42,6 +42,16 @@ export const DUST_THRESHOLD_LAMPORTS = 10_000n; // 0.00001 SOL
 export const KMAC_DOMAIN_RANDOM_SEED = 'Hydentity - Random Seed';
 export const KMAC_DOMAIN_SPLIT_SEED = 'Hydentity - Split Seed';
 export const KMAC_DOMAIN_DELAY_SEED = 'Hydentity - Delay Seed';
+/** KMAC domain for hashing wallet proof into policy execution seed */
+export const KMAC_DOMAIN_POLICY_MASTER_SEED = 'Hydentity - Policy Master Seed';
+
+/**
+ * Message bytes users sign to derive per-wallet policy execution entropy for
+ * split and delay plans. Does not authorize transfers by itself.
+ */
+export const POLICY_MASTER_SEED_SIGN_MESSAGE =
+  'Sign to derive Hydentity private withdrawal split entropy. ' +
+  'This does not grant any transfer.';
 
 /**
  * SNS TLD key for .sol domains

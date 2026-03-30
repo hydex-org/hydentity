@@ -115,7 +115,7 @@ hydentity/
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/hydentity.git
+git clone https://github.com/hydex-org/hydentity.git
 cd hydentity
 
 # Install dependencies

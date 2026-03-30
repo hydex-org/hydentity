@@ -3,6 +3,7 @@ import {
   KMAC_DOMAIN_RANDOM_SEED,
   KMAC_DOMAIN_SPLIT_SEED,
   KMAC_DOMAIN_DELAY_SEED,
+  KMAC_DOMAIN_POLICY_MASTER_SEED,
   DUST_THRESHOLD_LAMPORTS,
 } from '../constants';
 import type { Amount, U128 } from '../types/common';
@@ -44,6 +45,30 @@ export function deriveRandomSeed(masterSeed: Uint8Array, nonce: bigint): Uint8Ar
   const input = new Uint8Array([...masterSeed, ...nonceBytes]);
   return kmac256(
     new TextEncoder().encode(KMAC_DOMAIN_RANDOM_SEED),
+    input,
+    { dkLen: 32 }
+  );
+}
+
+/**
+ * Derive 32-byte policy master seed from a wallet message-signing proof.
+ * Callers must pass the Ed25519 signature of POLICY_MASTER_SEED_SIGN_MESSAGE.
+ */
+export function derivePolicyMasterSeedFromSignature(
+  walletPublicKey32: Uint8Array,
+  messageSignature64: Uint8Array
+): Uint8Array {
+  if (walletPublicKey32.length !== 32) {
+    throw new Error('wallet public key must be 32 bytes');
+  }
+  if (messageSignature64.length !== 64) {
+    throw new Error('Ed25519 signature must be 64 bytes');
+  }
+  const input = new Uint8Array(32 + 64);
+  input.set(walletPublicKey32, 0);
+  input.set(messageSignature64, 32);
+  return kmac256(
+    new TextEncoder().encode(KMAC_DOMAIN_POLICY_MASTER_SEED),
     input,
     { dkLen: 32 }
   );
