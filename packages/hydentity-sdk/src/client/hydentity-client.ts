@@ -28,7 +28,11 @@ import {
 } from '../instruction-builders/vault';
 import { buildUpdatePolicyInstruction, createUpdatePolicyParams } from '../instruction-builders/policy';
 import { buildAddDelegateInstruction, buildRevokeDelegateInstruction } from '../instruction-builders/delegate';
-import { HYDENTITY_PROGRAM_ID } from '../constants';
+import {
+  HYDENTITY_PROGRAM_ID,
+  POLICY_MASTER_SEED_SIGN_MESSAGE,
+} from '../constants';
+import { derivePolicyMasterSeedFromSignature } from '../utils/randomness';
 
 /**
  * Configuration options for HydentityClient
@@ -127,6 +131,21 @@ export class HydentityClient<T = SolanaTransactionSignature> {
       throw new Error('No signer configured. Call setSigner() first.');
     }
     return this.signer.getPublicKey();
+  }
+
+  /**
+   * Per-wallet entropy for PolicyEngine splits/delays (from signing POLICY_MASTER_SEED_SIGN_MESSAGE).
+   */
+  private async derivePolicyMasterSeed(): Promise<Uint8Array> {
+    if (!this.signer) {
+      throw new Error('No signer configured. Call setSigner() first.');
+    }
+    const message = new TextEncoder().encode(POLICY_MASTER_SEED_SIGN_MESSAGE);
+    const [signature, pubkey] = await Promise.all([
+      this.signer.signMessage(message),
+      this.signer.getPublicKey(),
+    ]);
+    return derivePolicyMasterSeedFromSignature(pubkey.toBytes(), signature);
   }
 
   /**
@@ -425,9 +444,8 @@ export class HydentityClient<T = SolanaTransactionSignature> {
       throw new Error(`Insufficient vault balance: ${balance.sol} < ${amount}`);
     }
 
-    // Create policy engine for this claim
-    const signer = await this.getSignerPublicKey();
-    const masterSeed = new Uint8Array(32); // TODO: Derive from signer
+    // Create policy engine for this claim (wallet-specific entropy via message sign)
+    const masterSeed = await this.derivePolicyMasterSeed();
     const policyEngine = new PolicyEngine(masterSeed, policy.policyNonce);
 
     // Generate execution plan
