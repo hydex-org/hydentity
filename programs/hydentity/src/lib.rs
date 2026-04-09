@@ -10,6 +10,7 @@ pub mod events;
 
 use constants::*;
 use errors::HydentityError;
+use instructions::{withdraw_handler, WithdrawDirect};
 #[cfg(feature = "arcium")]
 use events::ConfigStored;
 use state::{NameVault, VaultAuthority, PrivacyPolicy};
@@ -246,29 +247,15 @@ pub mod hydentity {
     // ========== Withdrawal Instructions ==========
 
     /// Direct withdrawal - bypass privacy features (owner only)
+    ///
+    /// Uses the instruction-module handler so SOL transfers keep the vault authority
+    /// rent-exempt and SPL withdrawals use the token program CPI path.
     pub fn withdraw_direct(
-        ctx: Context<WithdrawDirectAccounts>,
+        ctx: Context<WithdrawDirect>,
         amount: u64,
-        _mint: Option<Pubkey>,
+        mint: Option<Pubkey>,
     ) -> Result<()> {
-        let vault_authority = &ctx.accounts.vault_authority;
-        let destination = &ctx.accounts.destination;
-
-        msg!("Emergency direct withdrawal initiated by owner: {}", ctx.accounts.owner.key());
-
-        // For now, just do SOL transfer from vault authority
-        let balance = vault_authority.to_account_info().lamports();
-        if balance < amount {
-            return Err(HydentityError::InsufficientBalance.into());
-        }
-
-        // Direct lamport transfer (required for PDAs with data - System Program transfer won't work)
-        **vault_authority.to_account_info().try_borrow_mut_lamports()? -= amount;
-        **destination.to_account_info().try_borrow_mut_lamports()? += amount;
-
-        msg!("Transferred {} lamports to {}", amount, destination.key());
-
-        Ok(())
+        withdraw_handler(ctx, amount, mint)
     }
 }
 
@@ -344,43 +331,6 @@ pub struct ReclaimDomainAccounts<'info> {
         constraint = sns_name_program.key() == SNS_NAME_PROGRAM_ID @ HydentityError::InvalidSnsName
     )]
     pub sns_name_program: UncheckedAccount<'info>,
-}
-
-/// Accounts for withdraw_direct instruction
-#[derive(Accounts)]
-pub struct WithdrawDirectAccounts<'info> {
-    /// The vault owner (must be signer)
-    #[account(mut)]
-    pub owner: Signer<'info>,
-
-    /// The SNS name account
-    /// CHECK: Validated via vault's sns_name field
-    pub sns_name_account: UncheckedAccount<'info>,
-
-    /// The vault holding the funds
-    #[account(
-        seeds = [VAULT_SEED, sns_name_account.key().as_ref()],
-        bump = vault.bump,
-        constraint = vault.sns_name == sns_name_account.key() @ HydentityError::InvalidSnsName,
-        constraint = vault.owner == owner.key() @ HydentityError::Unauthorized
-    )]
-    pub vault: Account<'info, NameVault>,
-
-    /// The vault authority for signing transfers
-    #[account(
-        mut,
-        seeds = [VAULT_AUTH_SEED, sns_name_account.key().as_ref()],
-        bump = vault_authority.bump,
-    )]
-    pub vault_authority: Account<'info, VaultAuthority>,
-
-    /// The destination for the withdrawal
-    /// CHECK: Any valid account can receive funds
-    #[account(mut)]
-    pub destination: UncheckedAccount<'info>,
-
-    /// System program for SOL transfers
-    pub system_program: Program<'info, System>,
 }
 
 // ========== Vault Lifecycle Account Structs ==========
