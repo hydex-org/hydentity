@@ -274,16 +274,19 @@ describe("hydentity", () => {
 
   describe("withdraw_direct", () => {
     it("should allow owner to withdraw directly", async () => {
-      // First, fund the vault
+      // SOL for direct withdrawal lives on the vault authority PDA (not the NameVault metadata account)
       const fundAmount = LAMPORTS_PER_SOL;
-      const fundTx = await provider.connection.requestAirdrop(vaultPda, fundAmount);
+      const fundTx = await provider.connection.requestAirdrop(
+        vaultAuthorityPda,
+        fundAmount
+      );
       await provider.connection.confirmTransaction(fundTx);
 
       const destination = Keypair.generate();
       const withdrawAmount = LAMPORTS_PER_SOL / 2;
 
-      // Get initial balances
-      const vaultBalanceBefore = await provider.connection.getBalance(vaultPda);
+      // Get initial balances (authority holds spendable SOL)
+      const vaultBalanceBefore = await provider.connection.getBalance(vaultAuthorityPda);
 
       const tx = await program.methods
         .withdrawDirect(new anchor.BN(withdrawAmount), null)
@@ -304,7 +307,7 @@ describe("hydentity", () => {
       console.log("Withdraw direct tx:", tx);
 
       // Verify withdrawal
-      const vaultBalanceAfter = await provider.connection.getBalance(vaultPda);
+      const vaultBalanceAfter = await provider.connection.getBalance(vaultAuthorityPda);
       const destinationBalance = await provider.connection.getBalance(destination.publicKey);
       
       expect(vaultBalanceAfter).to.be.lessThan(vaultBalanceBefore);
